@@ -23,6 +23,12 @@ class Player {
         this.superJumpTimer = 0;
         this.superJumpDuration = 600; // 10 seconds at 60fps
 
+        // Hat Trick power-up (water bottle freeze)
+        this.hatTrickActive = false;
+        this.hatTrickTimer = 0;
+        this.hatTrickDuration = 600; // 10 seconds at 60fps
+        this.waterBottleCooldown = 0;
+
         // Shooting
         this.pucksCollected = 0;
         this.shots = 0; // each shot costs 5 pucks
@@ -57,6 +63,23 @@ class Player {
         return false;
     }
 
+    canSquirt() {
+        return this.hatTrickActive && this.waterBottleCooldown <= 0;
+    }
+
+    squirt() {
+        if (this.canSquirt()) {
+            this.waterBottleCooldown = 30; // cooldown frames
+            return true;
+        }
+        return false;
+    }
+
+    activateHatTrick() {
+        this.hatTrickActive = true;
+        this.hatTrickTimer = this.hatTrickDuration;
+    }
+
     update(keys, platforms) {
         // Horizontal movement
         this.skating = false;
@@ -82,6 +105,9 @@ class Player {
 
         // Shoot cooldown
         if (this.shootCooldown > 0) this.shootCooldown--;
+
+        // Water bottle cooldown
+        if (this.waterBottleCooldown > 0) this.waterBottleCooldown--;
 
         // Gravity
         this.velY += this.gravity;
@@ -119,6 +145,14 @@ class Player {
             this.superJumpTimer--;
             if (this.superJumpTimer <= 0) {
                 this.superJump = false;
+            }
+        }
+
+        // Hat Trick timer
+        if (this.hatTrickActive) {
+            this.hatTrickTimer--;
+            if (this.hatTrickTimer <= 0) {
+                this.hatTrickActive = false;
             }
         }
 
@@ -180,6 +214,12 @@ class Player {
             ctx.shadowBlur = 25;
         }
 
+        // Glow effect when hat trick is active
+        if (this.hatTrickActive) {
+            ctx.shadowColor = '#4a9eff';
+            ctx.shadowBlur = 20;
+        }
+
         // Flip for facing direction
         if (this.facing === -1) {
             ctx.translate(cx, 0);
@@ -188,8 +228,8 @@ class Player {
         }
 
         const legOffset = this.skating ? Math.sin(this.animFrame * Math.PI / 3) * 5 : 0;
-        const jerseyColor = this.superJump ? '#ffd700' : '#c8102e';
-        const jerseyDark = this.superJump ? '#c9a800' : '#9a0c24';
+        const jerseyColor = this.superJump ? '#ffd700' : (this.hatTrickActive ? '#4a9eff' : '#c8102e');
+        const jerseyDark = this.superJump ? '#c9a800' : (this.hatTrickActive ? '#2a6ecc' : '#9a0c24');
         const pantsColor = '#1a3a6e';
 
         // === SKATES ===

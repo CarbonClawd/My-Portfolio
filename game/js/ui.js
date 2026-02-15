@@ -4,6 +4,7 @@ class UI {
         this.canvas = canvas;
         this.pucksCollected = 0;
         this.totalPucks = 0;
+        this.currentLevel = 1;
 
         // Flash message system
         this.flashMessage = '';
@@ -79,8 +80,14 @@ class UI {
         // HUD Background bar
         ctx.fillStyle = 'rgba(0, 10, 40, 0.75)';
         ctx.fillRect(0, 0, this.canvas.width, 55);
-        ctx.fillStyle = '#0033a0';
+        ctx.fillStyle = this.currentLevel === 2 ? '#8B4513' : '#0033a0';
         ctx.fillRect(0, 53, this.canvas.width, 3);
+
+        // Level indicator
+        ctx.fillStyle = this.currentLevel === 2 ? '#ff8844' : '#4a9eff';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'right';
+        ctx.fillText('LEVEL ' + this.currentLevel, this.canvas.width - 15, 48);
 
         // Score
         ctx.fillStyle = '#fff';
@@ -98,9 +105,14 @@ class UI {
             ctx.fillText('❤️', 60 + i * 22, 45);
         }
 
-        // Timer
+        // Timer - color coded for urgency
         const timeSeconds = gameTimer / 60;
-        ctx.fillStyle = '#aac8ff';
+        let timerColor = '#44ff44'; // green = fast
+        if (timeSeconds > 300) timerColor = '#ff4444'; // red = slow
+        else if (timeSeconds > 210) timerColor = '#ff8844'; // orange
+        else if (timeSeconds > 150) timerColor = '#ffdd44'; // yellow
+        else if (timeSeconds > 90) timerColor = '#aaffaa'; // light green
+        ctx.fillStyle = timerColor;
         ctx.font = 'bold 16px Arial';
         ctx.textAlign = 'left';
         ctx.fillText('⏱ ' + Leaderboard.formatTime(timeSeconds), 140, 22);
@@ -138,7 +150,7 @@ class UI {
             ctx.fillText('[X] to shoot', ammoX, 53);
         }
 
-        // Super Jump indicator
+        // Super Jump indicator (Level 1)
         if (player.superJump) {
             const timeLeft = Math.ceil(player.superJumpTimer / 60);
             ctx.fillStyle = '#ffd700';
@@ -151,6 +163,26 @@ class UI {
             ctx.fillRect(this.canvas.width - 185, 28, 170, 8);
             ctx.fillStyle = 'rgba(255, 215, 0, 0.7)';
             ctx.fillRect(this.canvas.width - 185, 28, 170 * progress, 8);
+        }
+
+        // Hat Trick indicator (Level 2)
+        if (player.hatTrickActive) {
+            const timeLeft = Math.ceil(player.hatTrickTimer / 60);
+            ctx.fillStyle = '#4a9eff';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText('🎩 HAT TRICK! ' + timeLeft + 's', this.canvas.width - 15, 22);
+
+            const progress = player.hatTrickTimer / player.hatTrickDuration;
+            ctx.fillStyle = 'rgba(74, 158, 255, 0.3)';
+            ctx.fillRect(this.canvas.width - 185, 28, 170, 8);
+            ctx.fillStyle = 'rgba(74, 158, 255, 0.7)';
+            ctx.fillRect(this.canvas.width - 185, 28, 170 * progress, 8);
+
+            // Squirt hint
+            ctx.fillStyle = 'rgba(74, 158, 255, 0.8)';
+            ctx.font = 'bold 11px Arial';
+            ctx.fillText('[Z] squirt water bottle', this.canvas.width - 15, 48);
         }
 
         ctx.restore();
@@ -213,7 +245,9 @@ class UI {
         ctx.fillStyle = '#888';
         ctx.font = '12px Arial';
         ctx.fillText('Collect 5 pucks = 1 shot  •  Shoot pucks at goalies to eliminate them!', w / 2, h / 2 + 62);
-        ctx.fillText('Grab the Stanley Cup for SUPER JUMP  •  Reach the goal to win!', w / 2, h / 2 + 80);
+        ctx.fillText('Level 1: Stanley Cup = SUPER JUMP  •  Level 2: Hat Trick = FREEZE GOALIES', w / 2, h / 2 + 80);
+        ctx.fillStyle = '#44ff44';
+        ctx.fillText('⚡ Finish fast for a SPEED MULTIPLIER on your bonus score!', w / 2, h / 2 + 96);
 
         // Show top score if exists
         const entries = leaderboard ? leaderboard.getEntries() : [];
@@ -236,9 +270,79 @@ class UI {
         ctx.font = '16px Arial';
         ctx.fillText('Press L for Leaderboard', w / 2, h / 2 + 178);
 
-        ctx.fillStyle = '#555';
-        ctx.font = '12px Arial';
-        ctx.fillText("A hockey platformer adventure", w / 2, h - 20);
+        ctx.save();
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText("Developed by Will and Dan DeYoung", w / 2, h - 18);
+        ctx.restore();
+    }
+
+    drawLevelTransition(ctx, targetLevel) {
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.save();
+        ctx.shadowColor = targetLevel === 2 ? '#ff8844' : '#ffd700';
+        ctx.shadowBlur = 30;
+
+        ctx.fillStyle = targetLevel === 2 ? '#ff8844' : '#ffd700';
+        ctx.font = 'bold 52px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('LEVEL ' + targetLevel, w / 2, h / 2 - 30);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '22px Arial';
+        if (targetLevel === 2) {
+            ctx.fillText('The Playoffs Begin! Goalies are tougher!', w / 2, h / 2 + 20);
+            ctx.fillStyle = '#4a9eff';
+            ctx.font = '18px Arial';
+            ctx.fillText('🎩 Grab Hat Tricks to freeze goalies with water bottles!', w / 2, h / 2 + 55);
+        } else {
+            ctx.fillText('Get ready!', w / 2, h / 2 + 20);
+        }
+
+        ctx.restore();
+
+        // Show Level 1 time multiplier breakdown
+        if (this.level1Multiplier && this.level1Multiplier > 0) {
+            const multColor = this.level1Multiplier >= 3 ? '#44ff44' : this.level1Multiplier >= 2 ? '#ffdd44' : '#aaa';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            this._roundRect(ctx, w / 2 - 200, h / 2 + 65, 400, 80, 8);
+            ctx.fill();
+
+            ctx.fillStyle = '#aac8ff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Level 1 Time: ' + Leaderboard.formatTime(this.level1Time), w / 2, h / 2 + 82);
+
+            ctx.fillStyle = multColor;
+            ctx.font = 'bold 20px Arial';
+            ctx.fillText(this.level1Multiplier + 'x MULTIPLIER', w / 2, h / 2 + 105);
+
+            if (this.level1MultLabel) {
+                ctx.fillStyle = multColor;
+                ctx.font = 'bold 14px Arial';
+                ctx.fillText(this.level1MultLabel, w / 2, h / 2 + 122);
+            }
+
+            ctx.fillStyle = '#ffd700';
+            ctx.font = '13px Arial';
+            ctx.fillText('Bonus: ' + this.level1BaseBonus + ' × ' + this.level1Multiplier + ' = ' + this.level1MultipliedBonus + ' + ' + this.level1TimeBonus + ' speed bonus', w / 2, h / 2 + 140);
+        }
+
+        ctx.fillStyle = '#aaa';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        const blink = Math.sin(Date.now() * 0.005) > 0;
+        if (blink) {
+            ctx.fillText('Press ENTER to continue', w / 2, h / 2 + 170);
+        }
     }
 
     drawGameOver(ctx, player) {
@@ -257,20 +361,25 @@ class UI {
         ctx.fillText('GAME OVER', w / 2, h / 2 - 60);
         ctx.restore();
 
+        ctx.fillStyle = '#aaa';
+        ctx.font = '18px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Level ' + this.currentLevel, w / 2, h / 2 - 20);
+
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 28px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('Final Score: ' + player.score, w / 2, h / 2);
+        ctx.fillText('Final Score: ' + player.score, w / 2, h / 2 + 10);
 
         ctx.fillStyle = '#aaa';
         ctx.font = '20px Arial';
-        ctx.fillText('Pucks Collected: ' + this.pucksCollected + ' / ' + this.totalPucks, w / 2, h / 2 + 40);
+        ctx.fillText('Pucks Collected: ' + this.pucksCollected + ' / ' + this.totalPucks, w / 2, h / 2 + 50);
 
         ctx.fillStyle = '#ffd700';
         ctx.font = 'bold 22px Arial';
         const blink = Math.sin(Date.now() * 0.005) > 0;
         if (blink) {
-            ctx.fillText('Press ENTER to Play Again', w / 2, h / 2 + 100);
+            ctx.fillText('Press ENTER to Play Again', w / 2, h / 2 + 110);
         }
     }
 
@@ -307,6 +416,18 @@ class UI {
         ctx.fillStyle = '#aaa';
         ctx.font = '16px Arial';
         ctx.fillText('Pucks: ' + pucksCollected + '  |  Lives Remaining: ' + player.lives, w / 2, h / 2 - 25);
+
+        // Time multiplier breakdown
+        if (this.level2Multiplier && this.level2Multiplier > 0) {
+            const m2Color = this.level2Multiplier >= 3 ? '#44ff44' : this.level2Multiplier >= 2 ? '#ffdd44' : '#aaa';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            this._roundRect(ctx, w / 2 - 200, h / 2 - 15, 400, 30, 6);
+            ctx.fill();
+            ctx.fillStyle = m2Color;
+            ctx.font = 'bold 14px Arial';
+            const multText = 'Level 2: ' + this.level2Multiplier + 'x' + (this.level2MultLabel ? ' ' + this.level2MultLabel : '') + '  (+' + (this.level2MultipliedBonus + this.level2TimeBonus) + ' bonus)';
+            ctx.fillText(multText, w / 2, h / 2 - 2);
+        }
 
         // Name entry box
         ctx.fillStyle = '#fff';
