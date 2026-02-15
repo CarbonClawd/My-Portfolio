@@ -19,8 +19,10 @@
     let player, level, ui;
     let cameraX = 0;
     let keys = {};
+    let keysJustPressed = {};
     let time = 0;
     let particles = [];
+    let shotPucks = [];
     let screenShake = 0;
 
     // Level end position
@@ -28,6 +30,9 @@
 
     // Input handling
     window.addEventListener('keydown', (e) => {
+        if (!keys[e.key]) {
+            keysJustPressed[e.key] = true;
+        }
         keys[e.key] = true;
 
         // Prevent scrolling
@@ -56,6 +61,7 @@
         cameraX = 0;
         time = 0;
         particles = [];
+        shotPucks = [];
         screenShake = 0;
     }
 
@@ -238,12 +244,33 @@
             ui.drawWinScreen(ctx, player);
         }
 
+        // Clear just-pressed keys at end of frame
+        keysJustPressed = {};
+
         requestAnimationFrame(gameLoop);
     }
 
     function update() {
         // Update player
         player.update(keys, level.platforms);
+
+        // === SHOOTING ===
+        if ((keysJustPressed['x'] || keysJustPressed['X'] || keysJustPressed['f'] || keysJustPressed['F']) && player.shoot()) {
+            // Create shot puck projectile
+            const shotX = player.facing === 1 ? player.x + player.width : player.x - 16;
+            const shotY = player.y + player.height / 2 - 5;
+            shotPucks.push(new ShotPuck(shotX, shotY, player.facing));
+            spawnParticles(shotX, shotY, '#ffd700', 5);
+            screenShake = 3;
+        }
+
+        // Update shot pucks
+        for (let i = shotPucks.length - 1; i >= 0; i--) {
+            shotPucks[i].update();
+            if (!shotPucks[i].alive) {
+                shotPucks.splice(i, 1);
+            }
+        }
 
         // Camera follows player
         const targetCameraX = player.x - canvas.width * 0.35;
@@ -265,15 +292,23 @@
             cup.update(time);
         }
 
+        // Update flash messages
+        ui.updateFlash();
+
         // Collision: Player vs Pucks
         const playerBounds = player.getBounds();
         for (const puck of level.pucks) {
             if (!puck.collected && rectsOverlap(playerBounds, puck.getBounds())) {
                 puck.collected = true;
-                player.score += 10;
+                player.collectPuck();
                 ui.pucksCollected++;
                 spawnParticles(puck.x + 10, puck.y + 6, '#333', 8);
                 spawnParticles(puck.x + 10, puck.y + 6, '#ffd700', 4);
+
+                // Flash when getting a new shot
+                if (player.pucksCollected % 5 === 0) {
+                    ui.showFlash('🏒 NEW SHOT READY!', 90, '#ff8800', '#ff6600');
+                }
             }
         }
 
@@ -283,18 +318,43 @@
                 cup.collected = true;
                 player.activateSuperJump();
                 player.score += 50;
-                spawnParticles(cup.x + 14, cup.y + 20, '#ffd700', 20);
-                spawnParticles(cup.x + 14, cup.y + 20, '#fff', 10);
-                screenShake = 10;
+                spawnParticles(cup.x + 14, cup.y + 20, '#ffd700', 25);
+                spawnParticles(cup.x + 14, cup.y + 20, '#fff', 15);
+                screenShake = 12;
+
+                // STANLEY CUP FLASH MESSAGE!
+                ui.showFlash('🏆 YOU GOT THE STANLEY CUP! 🏆', 180, '#ffd700', '#ffd700');
             }
         }
 
         // Collision: Player vs Goalies
         for (const goalie of level.goalies) {
-            if (goalie.alive && rectsOverlap(playerBounds, goalie.getBounds())) {
+            if (goalie.alive && !goalie.dying && rectsOverlap(playerBounds, goalie.getBounds())) {
                 player.loseLife();
                 spawnParticles(player.x + 18, player.y + 26, '#c8102e', 12);
                 screenShake = 8;
+            }
+        }
+
+        // Collision: Shot Pucks vs Goalies
+        for (const shot of shotPucks) {
+            if (!shot.alive) continue;
+            for (const goalie of level.goalies) {
+                if (goalie.alive && !goalie.dying && rectsOverlap(shot.getBounds(), goalie.getBounds())) {
+                    // Kill the goalie!
+                    goalie.kill();
+                    shot.alive = false;
+                    player.score += 25;
+                    screenShake = 6;
+
+                    // Explosion particles
+                    spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#1a5e1a', 15);
+                    spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#ff4444', 10);
+                    spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#ffd700', 8);
+
+                    ui.showFlash('💥 GOALIE DOWN!', 60, '#ff4444', '#ff2200');
+                    break;
+                }
             }
         }
 
@@ -357,9 +417,14 @@
 
         // Draw goalies
         for (const goalie of level.goalies) {
-            if (goalie.x + goalie.width > cameraX - 50 && goalie.x < cameraX + canvas.width + 50) {
+            if ((goalie.alive || goalie.dying) && goalie.x + goalie.width > cameraX - 50 && goalie.x < cameraX + canvas.width + 50) {
                 goalie.draw(ctx, cameraX);
             }
+        }
+
+        // Draw shot pucks
+        for (const shot of shotPucks) {
+            shot.draw(ctx, cameraX);
         }
 
         // Draw player
@@ -399,7 +464,7 @@
             ctx.arc(finishX + 20, 450, 8, 0, Math.PI * 2);
             ctx.fill();
 
-            // "GOAL" text
+            // "FINISH" text
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 14px Arial';
             ctx.textAlign = 'center';
@@ -411,6 +476,9 @@
         // HUD (drawn without camera transform)
         if (gameState === STATE.PLAYING) {
             ui.drawHUD(ctx, player);
+
+            // Flash message overlay
+            ui.drawFlash(ctx);
         }
     }
 
