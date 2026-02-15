@@ -12,18 +12,27 @@
         START: 'start',
         PLAYING: 'playing',
         GAMEOVER: 'gameover',
-        WIN: 'win'
+        WIN: 'win',
+        NAME_ENTRY: 'name_entry',
+        LEADERBOARD: 'leaderboard'
     };
 
     let gameState = STATE.START;
     let player, level, ui;
+    let leaderboard = new Leaderboard();
     let cameraX = 0;
     let keys = {};
     let keysJustPressed = {};
     let time = 0;
+    let gameTimer = 0; // tracks game time in frames
     let particles = [];
     let shotPucks = [];
     let screenShake = 0;
+
+    // Name entry
+    let playerName = '';
+    let nameEntryCursor = 0;
+    let lastRank = 0;
 
     // Level end position
     const LEVEL_END = 4900;
@@ -40,10 +49,38 @@
             e.preventDefault();
         }
 
-        // Enter to start/restart
+        // === NAME ENTRY INPUT ===
+        if (gameState === STATE.NAME_ENTRY) {
+            if (e.key === 'Enter' && playerName.length > 0) {
+                // Submit name
+                const timeSeconds = gameTimer / 60;
+                lastRank = leaderboard.addEntry(playerName, player.score, timeSeconds, ui.pucksCollected);
+                gameState = STATE.LEADERBOARD;
+            } else if (e.key === 'Backspace') {
+                playerName = playerName.slice(0, -1);
+            } else if (e.key.length === 1 && playerName.length < 12) {
+                // Only allow letters, numbers, spaces
+                if (/[a-zA-Z0-9 ]/.test(e.key)) {
+                    playerName += e.key;
+                }
+            }
+            return;
+        }
+
+        // === LEADERBOARD / START / GAMEOVER INPUT ===
         if (e.key === 'Enter') {
-            if (gameState === STATE.START || gameState === STATE.GAMEOVER || gameState === STATE.WIN) {
+            if (gameState === STATE.START || gameState === STATE.GAMEOVER || gameState === STATE.LEADERBOARD) {
                 startGame();
+            }
+        }
+
+        if ((e.key === 'l' || e.key === 'L') && gameState === STATE.START) {
+            gameState = STATE.LEADERBOARD;
+        }
+
+        if (e.key === 'Escape') {
+            if (gameState === STATE.LEADERBOARD) {
+                gameState = STATE.START;
             }
         }
     });
@@ -60,9 +97,11 @@
         ui.totalPucks = level.pucks.length;
         cameraX = 0;
         time = 0;
+        gameTimer = 0;
         particles = [];
         shotPucks = [];
         screenShake = 0;
+        playerName = '';
     }
 
     // Collision detection helper
@@ -114,7 +153,6 @@
 
     // Background drawing
     function drawBackground(ctx) {
-        // Arena background gradient
         const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
         grad.addColorStop(0, '#0a1628');
         grad.addColorStop(0.4, '#0d2040');
@@ -123,7 +161,6 @@
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Arena lights (parallax - move slower than camera)
         ctx.fillStyle = 'rgba(255, 255, 200, 0.03)';
         for (let i = 0; i < 8; i++) {
             const lx = (i * 200 - cameraX * 0.1) % (canvas.width + 200) - 100;
@@ -135,16 +172,13 @@
             ctx.fill();
         }
 
-        // Crowd silhouette (parallax)
         ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
         for (let i = 0; i < canvas.width + 40; i += 12) {
-            const crowdX = i;
             const crowdOffset = Math.sin((i + cameraX * 0.05) * 0.1) * 8;
             const crowdHeight = 30 + Math.sin(i * 0.3) * 10 + crowdOffset;
-            ctx.fillRect(crowdX, 80 - crowdHeight / 2, 10, crowdHeight);
+            ctx.fillRect(i, 80 - crowdHeight / 2, 10, crowdHeight);
         }
 
-        // Scoreboard in background
         const sbX = canvas.width / 2 - 80 - (cameraX * 0.05 % 20);
         ctx.fillStyle = 'rgba(20, 20, 20, 0.5)';
         ctx.fillRect(sbX, 20, 160, 40);
@@ -161,7 +195,6 @@
         ctx.font = 'bold 14px Arial';
         ctx.fillText('vs', sbX + 80, 45);
 
-        // Ice sparkles
         for (let i = 0; i < 15; i++) {
             const sparkleX = ((i * 137 + time * 0.5) % canvas.width);
             const sparkleY = 480 + Math.sin(i * 2.5 + time * 0.02) * 30;
@@ -171,9 +204,7 @@
         }
     }
 
-    // Draw rink markings on ground
     function drawRinkMarkings(ctx) {
-        // Center ice circle
         const centerX = 400 - cameraX;
         ctx.strokeStyle = 'rgba(0, 51, 160, 0.3)';
         ctx.lineWidth = 3;
@@ -181,7 +212,6 @@
         ctx.arc(centerX, 540, 40, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Center red line
         ctx.strokeStyle = 'rgba(200, 16, 46, 0.25)';
         ctx.lineWidth = 4;
         ctx.beginPath();
@@ -189,7 +219,6 @@
         ctx.lineTo(centerX, 600);
         ctx.stroke();
 
-        // Blue lines
         const blueLine1 = 250 - cameraX;
         const blueLine2 = 550 - cameraX;
         ctx.strokeStyle = 'rgba(0, 51, 160, 0.2)';
@@ -203,7 +232,6 @@
         ctx.lineTo(blueLine2, 600);
         ctx.stroke();
 
-        // Faceoff circles at various points
         const faceoffPositions = [1000, 2000, 3000, 4000];
         for (const pos of faceoffPositions) {
             const fx = pos - cameraX;
@@ -213,8 +241,6 @@
                 ctx.beginPath();
                 ctx.arc(fx, 540, 30, 0, Math.PI * 2);
                 ctx.stroke();
-
-                // Faceoff dot
                 ctx.fillStyle = 'rgba(200, 16, 46, 0.2)';
                 ctx.beginPath();
                 ctx.arc(fx, 540, 4, 0, Math.PI * 2);
@@ -232,7 +258,7 @@
         if (gameState === STATE.START) {
             drawBackground(ctx);
             ui = ui || new UI(canvas);
-            ui.drawStartScreen(ctx);
+            ui.drawStartScreen(ctx, leaderboard);
         } else if (gameState === STATE.PLAYING) {
             update();
             draw();
@@ -240,8 +266,14 @@
             draw();
             ui.drawGameOver(ctx, player);
         } else if (gameState === STATE.WIN) {
+            // Transition to name entry after a brief pause
+            gameState = STATE.NAME_ENTRY;
+        } else if (gameState === STATE.NAME_ENTRY) {
             draw();
-            ui.drawWinScreen(ctx, player);
+            ui.drawNameEntry(ctx, player, gameTimer, playerName, ui.pucksCollected);
+        } else if (gameState === STATE.LEADERBOARD) {
+            drawBackground(ctx);
+            ui.drawLeaderboard(ctx, leaderboard, lastRank);
         }
 
         // Clear just-pressed keys at end of frame
@@ -251,12 +283,14 @@
     }
 
     function update() {
+        // Increment game timer
+        gameTimer++;
+
         // Update player
         player.update(keys, level.platforms);
 
         // === SHOOTING ===
         if ((keysJustPressed['x'] || keysJustPressed['X'] || keysJustPressed['f'] || keysJustPressed['F']) && player.shoot()) {
-            // Create shot puck projectile
             const shotX = player.facing === 1 ? player.x + player.width : player.x - 16;
             const shotY = player.y + player.height / 2 - 5;
             shotPucks.push(new ShotPuck(shotX, shotY, player.facing));
@@ -305,7 +339,6 @@
                 spawnParticles(puck.x + 10, puck.y + 6, '#333', 8);
                 spawnParticles(puck.x + 10, puck.y + 6, '#ffd700', 4);
 
-                // Flash when getting a new shot
                 if (player.pucksCollected % 5 === 0) {
                     ui.showFlash('🏒 NEW SHOT READY!', 90, '#ff8800', '#ff6600');
                 }
@@ -321,8 +354,6 @@
                 spawnParticles(cup.x + 14, cup.y + 20, '#ffd700', 25);
                 spawnParticles(cup.x + 14, cup.y + 20, '#fff', 15);
                 screenShake = 12;
-
-                // STANLEY CUP FLASH MESSAGE!
                 ui.showFlash('🏆 YOU GOT THE STANLEY CUP! 🏆', 180, '#ffd700', '#ffd700');
             }
         }
@@ -341,17 +372,13 @@
             if (!shot.alive) continue;
             for (const goalie of level.goalies) {
                 if (goalie.alive && !goalie.dying && rectsOverlap(shot.getBounds(), goalie.getBounds())) {
-                    // Kill the goalie!
                     goalie.kill();
                     shot.alive = false;
                     player.score += 25;
                     screenShake = 6;
-
-                    // Explosion particles
                     spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#1a5e1a', 15);
                     spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#ff4444', 10);
                     spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#ffd700', 8);
-
                     ui.showFlash('💥 GOALIE DOWN!', 60, '#ff4444', '#ff2200');
                     break;
                 }
@@ -363,23 +390,19 @@
             gameState = STATE.GAMEOVER;
         }
 
-        // Check win - reached end of level
+        // Check win
         if (player.x >= LEVEL_END) {
             gameState = STATE.WIN;
-            player.score += player.lives * 100; // Bonus for remaining lives
+            player.score += player.lives * 100;
         }
 
-        // Update particles
         updateParticles();
-
-        // Screen shake decay
         if (screenShake > 0) screenShake *= 0.85;
     }
 
     function draw() {
         ctx.save();
 
-        // Screen shake
         if (screenShake > 0.5) {
             ctx.translate(
                 (Math.random() - 0.5) * screenShake,
@@ -387,61 +410,46 @@
             );
         }
 
-        // Background
         drawBackground(ctx);
-
-        // Rink markings
         drawRinkMarkings(ctx);
 
-        // Draw platforms
         for (const plat of level.platforms) {
-            // Only draw if on screen
             if (plat.x + plat.width > cameraX - 50 && plat.x < cameraX + canvas.width + 50) {
                 plat.draw(ctx, cameraX);
             }
         }
 
-        // Draw pucks
         for (const puck of level.pucks) {
             if (!puck.collected && puck.x + 20 > cameraX - 50 && puck.x < cameraX + canvas.width + 50) {
                 puck.draw(ctx, cameraX, time);
             }
         }
 
-        // Draw stanley cups
         for (const cup of level.stanleyCups) {
             if (!cup.collected && cup.x + 28 > cameraX - 50 && cup.x < cameraX + canvas.width + 50) {
                 cup.draw(ctx, cameraX, time);
             }
         }
 
-        // Draw goalies
         for (const goalie of level.goalies) {
             if ((goalie.alive || goalie.dying) && goalie.x + goalie.width > cameraX - 50 && goalie.x < cameraX + canvas.width + 50) {
                 goalie.draw(ctx, cameraX);
             }
         }
 
-        // Draw shot pucks
         for (const shot of shotPucks) {
             shot.draw(ctx, cameraX);
         }
 
-        // Draw player
         player.draw(ctx, cameraX);
-
-        // Draw particles
         drawParticles(ctx);
 
-        // Draw finish line
+        // Finish line
         const finishX = LEVEL_END - cameraX;
         if (finishX > -50 && finishX < canvas.width + 50) {
-            // Goal net
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 3;
             ctx.strokeRect(finishX - 5, 460, 50, 60);
-
-            // Net mesh
             ctx.strokeStyle = 'rgba(255,255,255,0.3)';
             ctx.lineWidth = 1;
             for (let i = 0; i < 50; i += 8) {
@@ -456,15 +464,11 @@
                 ctx.lineTo(finishX + 45, 460 + j);
                 ctx.stroke();
             }
-
-            // Red light above goal
             const glowAlpha = Math.sin(time * 0.1) * 0.3 + 0.5;
             ctx.fillStyle = `rgba(255, 0, 0, ${glowAlpha})`;
             ctx.beginPath();
             ctx.arc(finishX + 20, 450, 8, 0, Math.PI * 2);
             ctx.fill();
-
-            // "FINISH" text
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 14px Arial';
             ctx.textAlign = 'center';
@@ -473,18 +477,14 @@
 
         ctx.restore();
 
-        // HUD (drawn without camera transform)
+        // HUD
         if (gameState === STATE.PLAYING) {
-            ui.drawHUD(ctx, player);
-
-            // Flash message overlay
+            ui.drawHUD(ctx, player, gameTimer);
             ui.drawFlash(ctx);
         }
     }
 
-    // Initialize UI for start screen
+    // Initialize
     ui = new UI(canvas);
-
-    // Start the game loop
     gameLoop();
 })();
