@@ -56,7 +56,15 @@ class Goalie {
         this.iceParticles = [];
 
         // Apply difficulty scaling
-        if (this.difficulty >= 2) {
+        if (this.difficulty >= 3) {
+            this.speed = 2.8;
+            this.baseSpeed = 2.8;
+            this.blockChance = 0.012;
+            this.blockDuration = 50;
+            this.chargeSpeed = 6;
+            this.pokeChance = 0.01;
+            this.pokeExtend = 28;
+        } else if (this.difficulty >= 2) {
             this.speed = 2.2;
             this.baseSpeed = 2.2;
         }
@@ -134,7 +142,7 @@ class Goalie {
             if (playerX !== undefined && this.chargeCooldown <= 0) {
                 const dist = Math.abs(playerX - this.x);
                 if (dist < 200 && dist > 30) {
-                    const chargeChance = this.difficulty >= 2 ? 0.015 : 0.008;
+                    const chargeChance = this.difficulty >= 3 ? 0.025 : (this.difficulty >= 2 ? 0.015 : 0.008);
                     if (Math.random() < chargeChance) {
                         this.charging = true;
                         this.chargeTimer = this.chargeDuration;

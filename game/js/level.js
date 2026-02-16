@@ -580,6 +580,299 @@ function createLevel2() {
     return { platforms, pucks, goalies, stanleyCups, hatTricks };
 }
 
+// Breakaway Power-Up (Level 3) - Invincibility for 5 seconds
+class Breakaway {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 34;
+        this.height = 38;
+        this.collected = false;
+        this.glowTimer = 0;
+    }
+
+    update(time) {
+        this.glowTimer = time;
+        this.bobY = Math.sin(time * 0.04) * 5;
+    }
+
+    draw(ctx, cameraX, time) {
+        if (this.collected) return;
+
+        const drawX = this.x - cameraX;
+        const drawY = this.y + (this.bobY || 0);
+
+        ctx.save();
+
+        // Glow effect - green/gold
+        const glowIntensity = Math.sin(time * 0.07) * 0.3 + 0.7;
+        ctx.shadowColor = '#44ff88';
+        ctx.shadowBlur = 20 * glowIntensity;
+
+        // === SPEED BURST ICON ===
+
+        // Shield/aura circle
+        const pulse = Math.sin(time * 0.08) * 3;
+        ctx.strokeStyle = 'rgba(68, 255, 136, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(drawX + 17, drawY + 19, 18 + pulse, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Inner glow circle
+        ctx.fillStyle = 'rgba(68, 255, 136, 0.15)';
+        ctx.beginPath();
+        ctx.arc(drawX + 17, drawY + 19, 16, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Player silhouette (skating figure)
+        ctx.fillStyle = '#44ff88';
+        // Body
+        ctx.beginPath();
+        ctx.ellipse(drawX + 17, drawY + 14, 5, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Head
+        ctx.beginPath();
+        ctx.arc(drawX + 17, drawY + 6, 4, 0, Math.PI * 2);
+        ctx.fill();
+        // Legs (skating pose)
+        ctx.strokeStyle = '#44ff88';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(drawX + 17, drawY + 20);
+        ctx.lineTo(drawX + 12, drawY + 28);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(drawX + 17, drawY + 20);
+        ctx.lineTo(drawX + 24, drawY + 26);
+        ctx.stroke();
+        // Stick
+        ctx.strokeStyle = '#88ffbb';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(drawX + 22, drawY + 12);
+        ctx.lineTo(drawX + 28, drawY + 22);
+        ctx.stroke();
+
+        // Speed lines
+        ctx.strokeStyle = 'rgba(68, 255, 136, 0.6)';
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 3; i++) {
+            const lineY = drawY + 8 + i * 8;
+            const linePhase = Math.sin(time * 0.12 + i * 1.5) * 3;
+            ctx.beginPath();
+            ctx.moveTo(drawX - 2 + linePhase, lineY);
+            ctx.lineTo(drawX + 8 + linePhase, lineY);
+            ctx.stroke();
+        }
+
+        // Sparkle effects
+        const sparkle1 = Math.sin(time * 0.12) * 0.5 + 0.5;
+        const sparkle2 = Math.sin(time * 0.12 + 2) * 0.5 + 0.5;
+        const sparkle3 = Math.sin(time * 0.12 + 4) * 0.5 + 0.5;
+
+        ctx.globalAlpha = sparkle1;
+        ctx.fillStyle = '#88ffbb';
+        ctx.beginPath();
+        ctx.arc(drawX + 1, drawY + 6, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = sparkle2;
+        ctx.beginPath();
+        ctx.arc(drawX + 32, drawY + 14, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = sparkle3;
+        ctx.beginPath();
+        ctx.arc(drawX + 4, drawY + 30, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = 1;
+
+        // "BREAKAWAY" label
+        ctx.fillStyle = '#44ff88';
+        ctx.font = 'bold 7px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('BREAKAWAY', drawX + 17, drawY + 38);
+
+        ctx.restore();
+    }
+
+    _roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    getBounds() {
+        return {
+            x: this.x,
+            y: this.y,
+            width: this.width,
+            height: this.height
+        };
+    }
+}
+
+// Level 3 builder - The Finals! Hardest level with Breakaway power-ups
+function createLevel3() {
+    const platforms = [];
+    const pucks = [];
+    const goalies = [];
+    const stanleyCups = [];
+    const hatTricks = [];
+    const breakaways = [];
+
+    // Ground - ice surface with bigger gaps (harder jumps)
+    platforms.push(new Platform(0, 520, 500, 80, 'ground'));
+    platforms.push(new Platform(650, 520, 400, 80, 'ground'));
+    platforms.push(new Platform(1200, 520, 350, 80, 'ground'));
+    platforms.push(new Platform(1700, 520, 500, 80, 'ground'));
+    platforms.push(new Platform(2350, 520, 400, 80, 'ground'));
+    platforms.push(new Platform(2900, 520, 350, 80, 'ground'));
+    platforms.push(new Platform(3400, 520, 500, 80, 'ground'));
+    platforms.push(new Platform(4050, 520, 400, 80, 'ground'));
+    platforms.push(new Platform(4600, 520, 500, 80, 'ground'));
+
+    // Floating platforms - narrower and trickier
+    platforms.push(new Platform(130, 430, 80, 18, 'boards'));
+    platforms.push(new Platform(280, 360, 70, 18, 'ice'));
+    platforms.push(new Platform(420, 300, 80, 18, 'boards'));
+    platforms.push(new Platform(560, 410, 70, 18, 'ice'));
+
+    platforms.push(new Platform(720, 340, 75, 18, 'boards'));
+    platforms.push(new Platform(870, 270, 70, 18, 'ice'));
+    platforms.push(new Platform(1010, 390, 80, 18, 'boards'));
+    platforms.push(new Platform(1150, 310, 70, 18, 'ice'));
+
+    platforms.push(new Platform(1300, 430, 75, 18, 'boards'));
+    platforms.push(new Platform(1450, 350, 70, 18, 'ice'));
+    platforms.push(new Platform(1600, 280, 80, 18, 'boards'));
+
+    platforms.push(new Platform(1800, 410, 70, 18, 'ice'));
+    platforms.push(new Platform(1950, 330, 75, 18, 'boards'));
+    platforms.push(new Platform(2100, 260, 70, 18, 'ice'));
+    platforms.push(new Platform(2250, 390, 80, 18, 'boards'));
+
+    platforms.push(new Platform(2430, 340, 70, 18, 'ice'));
+    platforms.push(new Platform(2580, 270, 75, 18, 'boards'));
+    platforms.push(new Platform(2730, 400, 70, 18, 'ice'));
+
+    platforms.push(new Platform(2970, 350, 75, 18, 'boards'));
+    platforms.push(new Platform(3120, 280, 70, 18, 'ice'));
+    platforms.push(new Platform(3270, 400, 80, 18, 'boards'));
+
+    platforms.push(new Platform(3480, 340, 70, 18, 'ice'));
+    platforms.push(new Platform(3630, 270, 75, 18, 'boards'));
+    platforms.push(new Platform(3780, 360, 70, 18, 'ice'));
+    platforms.push(new Platform(3930, 290, 80, 18, 'boards'));
+
+    platforms.push(new Platform(4130, 380, 70, 18, 'ice'));
+    platforms.push(new Platform(4280, 300, 75, 18, 'boards'));
+    platforms.push(new Platform(4430, 240, 70, 18, 'ice'));
+    platforms.push(new Platform(4580, 350, 80, 18, 'boards'));
+    platforms.push(new Platform(4750, 270, 75, 18, 'ice'));
+    platforms.push(new Platform(4900, 380, 70, 18, 'boards'));
+
+    // Pucks on ground
+    for (let i = 60; i < 450; i += 65) {
+        pucks.push(new Puck(i, 498));
+    }
+    for (let i = 700; i < 1000; i += 70) {
+        pucks.push(new Puck(i, 498));
+    }
+    for (let i = 1250; i < 1500; i += 65) {
+        pucks.push(new Puck(i, 498));
+    }
+    for (let i = 1750; i < 2150; i += 60) {
+        pucks.push(new Puck(i, 498));
+    }
+    for (let i = 2400; i < 2700; i += 65) {
+        pucks.push(new Puck(i, 498));
+    }
+    for (let i = 2950; i < 3200; i += 60) {
+        pucks.push(new Puck(i, 498));
+    }
+    for (let i = 3450; i < 3850; i += 65) {
+        pucks.push(new Puck(i, 498));
+    }
+    for (let i = 4100; i < 4400; i += 60) {
+        pucks.push(new Puck(i, 498));
+    }
+    for (let i = 4650; i < 5000; i += 55) {
+        pucks.push(new Puck(i, 498));
+    }
+
+    // Pucks on platforms
+    pucks.push(new Puck(155, 408));
+    pucks.push(new Puck(300, 338));
+    pucks.push(new Puck(445, 278));
+    pucks.push(new Puck(580, 388));
+    pucks.push(new Puck(745, 318));
+    pucks.push(new Puck(890, 248));
+    pucks.push(new Puck(1035, 368));
+    pucks.push(new Puck(1170, 288));
+    pucks.push(new Puck(1325, 408));
+    pucks.push(new Puck(1470, 328));
+    pucks.push(new Puck(1625, 258));
+    pucks.push(new Puck(1820, 388));
+    pucks.push(new Puck(1975, 308));
+    pucks.push(new Puck(2120, 238));
+    pucks.push(new Puck(2275, 368));
+    pucks.push(new Puck(2450, 318));
+    pucks.push(new Puck(2600, 248));
+    pucks.push(new Puck(2990, 328));
+    pucks.push(new Puck(3140, 258));
+    pucks.push(new Puck(3500, 318));
+    pucks.push(new Puck(3650, 248));
+    pucks.push(new Puck(3800, 338));
+    pucks.push(new Puck(3955, 268));
+    pucks.push(new Puck(4300, 278));
+    pucks.push(new Puck(4450, 218));
+    pucks.push(new Puck(4770, 248));
+
+    // Goalies on ground (difficulty 3 - hardest!)
+    goalies.push(new Goalie(250, 464, 130, 3));
+    goalies.push(new Goalie(750, 464, 110, 3));
+    goalies.push(new Goalie(1300, 464, 100, 3));
+    goalies.push(new Goalie(1850, 464, 140, 3));
+    goalies.push(new Goalie(2150, 464, 110, 3));
+    goalies.push(new Goalie(2500, 464, 120, 3));
+    goalies.push(new Goalie(3000, 464, 100, 3));
+    goalies.push(new Goalie(3500, 464, 130, 3));
+    goalies.push(new Goalie(3800, 464, 110, 3));
+    goalies.push(new Goalie(4200, 464, 120, 3));
+    goalies.push(new Goalie(4700, 464, 100, 3));
+
+    // Goalies on platforms (difficulty 3)
+    goalies.push(new Goalie(430, 244, 20, 3));
+    goalies.push(new Goalie(880, 214, 20, 3));
+    goalies.push(new Goalie(1610, 224, 20, 3));
+    goalies.push(new Goalie(2110, 204, 20, 3));
+    goalies.push(new Goalie(2590, 214, 20, 3));
+    goalies.push(new Goalie(3130, 224, 20, 3));
+    goalies.push(new Goalie(3640, 214, 20, 3));
+    goalies.push(new Goalie(3940, 234, 20, 3));
+    goalies.push(new Goalie(4440, 184, 20, 3));
+    goalies.push(new Goalie(4760, 214, 20, 3));
+
+    // Breakaway power-ups (Level 3 special)
+    breakaways.push(new Breakaway(895, 225));
+    breakaways.push(new Breakaway(1630, 235));
+    breakaways.push(new Breakaway(2605, 225));
+    breakaways.push(new Breakaway(3960, 245));
+
+    return { platforms, pucks, goalies, stanleyCups, hatTricks, breakaways };
+}
+
 // Legacy function for backward compatibility
 function createLevel() {
     return createLevel1();

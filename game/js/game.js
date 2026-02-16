@@ -37,12 +37,18 @@
     let level1EndTime = 0;
     let level2StartTime = 0;
     let level2EndTime = 0;
+    let level3StartTime = 0;
+    let level3EndTime = 0;
     let level1Multiplier = 1;
     let level2Multiplier = 1;
+    let level3Multiplier = 1;
     let level1TimeBonus = 0;
     let level2TimeBonus = 0;
+    let level3TimeBonus = 0;
     let level1MultLabel = '';
     let level2MultLabel = '';
+    let level3MultLabel = '';
+    let transitionTargetLevel = 2;
 
     // Name entry
     let playerName = '';
@@ -91,7 +97,11 @@
         // LEVEL TRANSITION INPUT
         if (gameState === STATE.LEVEL_TRANSITION) {
             if (e.key === 'Enter') {
-                startLevel2();
+                if (transitionTargetLevel === 3) {
+                    startLevel3();
+                } else {
+                    startLevel2();
+                }
             }
             return;
         }
@@ -173,6 +183,31 @@
         waterBottles = [];
         screenShake = 0;
         level2StartTime = gameTimer;
+    }
+
+    function startLevel3() {
+        gameState = STATE.PLAYING;
+        currentLevel = 3;
+        const savedUiPucks = ui.pucksCollected;
+
+        player.x = 50;
+        player.y = 400;
+        player.velX = 0;
+        player.velY = 0;
+        player.superJump = false;
+        player.hatTrickActive = false;
+        player.breakawayActive = false;
+        player.invincible = false;
+
+        level = createLevel3();
+        ui.currentLevel = 3;
+        ui.totalPucks = savedUiPucks + level.pucks.length;
+        cameraX = 0;
+        particles = [];
+        shotPucks = [];
+        waterBottles = [];
+        screenShake = 0;
+        level3StartTime = gameTimer;
     }
 
     // Collision detection helper
@@ -339,8 +374,87 @@
         }
     }
 
+    // Level 3 Background - purple/green aurora (Stanley Cup Finals)
+    function drawBackground3(ctx) {
+        const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, '#0a0520');
+        grad.addColorStop(0.3, '#1a0a35');
+        grad.addColorStop(0.5, '#0d2a2a');
+        grad.addColorStop(0.7, '#0a3520');
+        grad.addColorStop(1, '#0d4028');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Aurora / Northern Lights beams
+        for (let i = 0; i < 10; i++) {
+            const lx = (i * 160 - cameraX * 0.08) % (canvas.width + 200) - 100;
+            const auroraPhase = Math.sin(time * 0.015 + i * 0.7);
+            const green = Math.floor(100 + auroraPhase * 50);
+            const purple = Math.floor(80 + Math.sin(time * 0.02 + i) * 40);
+            ctx.fillStyle = 'rgba(' + purple + ', ' + Math.floor(green * 0.3) + ', ' + green + ', 0.04)';
+            ctx.beginPath();
+            ctx.moveTo(lx + auroraPhase * 20, 0);
+            ctx.lineTo(lx - 80 + auroraPhase * 10, canvas.height);
+            ctx.lineTo(lx + 80 + auroraPhase * 10, canvas.height);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Crowd - dark with green/purple accents
+        ctx.fillStyle = 'rgba(10, 5, 20, 0.5)';
+        for (let i = 0; i < canvas.width + 40; i += 12) {
+            const crowdOffset = Math.sin((i + cameraX * 0.05) * 0.1) * 12;
+            const crowdHeight = 34 + Math.sin(i * 0.3) * 14 + crowdOffset;
+            ctx.fillRect(i, 76 - crowdHeight / 2, 10, crowdHeight);
+        }
+
+        // Crowd towel waving - white towels for Finals
+        for (let i = 0; i < canvas.width + 40; i += 28) {
+            const wave = Math.sin((i + time * 3) * 0.06);
+            if (wave > 0.5) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+                ctx.fillRect(i, 62, 8, 14);
+            }
+            if (wave < -0.6) {
+                ctx.fillStyle = 'rgba(68, 255, 136, 0.1)';
+                ctx.fillRect(i + 4, 64, 6, 10);
+            }
+        }
+
+        // Scoreboard - STANLEY CUP FINALS
+        const sbX = canvas.width / 2 - 100 - (cameraX * 0.05 % 20);
+        ctx.fillStyle = 'rgba(10, 5, 20, 0.7)';
+        ctx.fillRect(sbX, 18, 200, 44);
+        ctx.strokeStyle = 'rgba(68, 255, 136, 0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(sbX, 18, 200, 44);
+        ctx.fillStyle = 'rgba(68, 255, 136, 0.7)';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('STANLEY CUP', sbX + 100, 36);
+        ctx.fillStyle = 'rgba(200, 150, 255, 0.6)';
+        ctx.font = 'bold 12px Arial';
+        ctx.fillText('⭐ THE FINALS ⭐', sbX + 100, 54);
+
+        // Green/purple sparkles on ice
+        for (let i = 0; i < 20; i++) {
+            const sparkleX = ((i * 113 + time * 0.6) % canvas.width);
+            const sparkleY = 478 + Math.sin(i * 2.5 + time * 0.025) * 32;
+            const sparkleAlpha = Math.sin(time * 0.12 + i) * 0.3 + 0.3;
+            const isGreen = i % 2 === 0;
+            if (isGreen) {
+                ctx.fillStyle = 'rgba(68, 255, 136, ' + sparkleAlpha + ')';
+            } else {
+                ctx.fillStyle = 'rgba(180, 120, 255, ' + sparkleAlpha + ')';
+            }
+            ctx.fillRect(sparkleX, sparkleY, 2, 2);
+        }
+    }
+
     function drawBackground(ctx) {
-        if (currentLevel === 2) {
+        if (currentLevel === 3) {
+            drawBackground3(ctx);
+        } else if (currentLevel === 2) {
             drawBackground2(ctx);
         } else {
             drawBackground1(ctx);
@@ -417,7 +531,7 @@
             ui.drawLeaderboard(ctx, leaderboard, lastRank);
         } else if (gameState === STATE.LEVEL_TRANSITION) {
             drawBackground(ctx);
-            ui.drawLevelTransition(ctx, 2);
+            ui.drawLevelTransition(ctx, transitionTargetLevel);
         }
 
         keysJustPressed = {};
@@ -487,6 +601,13 @@
             ht.update(time);
         }
 
+        // Update breakaways
+        if (level.breakaways) {
+            for (const ba of level.breakaways) {
+                ba.update(time);
+            }
+        }
+
         // Update flash messages
         ui.updateFlash();
 
@@ -530,6 +651,27 @@
                 screenShake = 12;
                 ui.showFlash('🎩 HAT TRICK! FREEZE THEM! 🎩', 180, '#4a9eff', '#4a9eff');
             }
+        }
+
+        // Collision: Player vs Breakaways (Level 3)
+        if (level.breakaways) {
+            for (const ba of level.breakaways) {
+                if (!ba.collected && rectsOverlap(playerBounds, ba.getBounds())) {
+                    ba.collected = true;
+                    player.activateBreakaway();
+                    player.score += 75;
+                    spawnParticles(ba.x + 17, ba.y + 19, '#44ff88', 30);
+                    spawnParticles(ba.x + 17, ba.y + 19, '#88ffbb', 15);
+                    spawnParticles(ba.x + 17, ba.y + 19, '#ffd700', 10);
+                    screenShake = 15;
+                    ui.showFlash('🏃 BREAKAWAY! INVINCIBLE! 🏃', 180, '#44ff88', '#44ff88');
+                }
+            }
+        }
+
+        // Breakaway particle trail
+        if (player.breakawayActive && time % 3 === 0) {
+            spawnParticles(player.x + player.width / 2, player.y + player.height, '#44ff88', 2);
         }
 
         // Collision: Player vs Goalies
@@ -613,8 +755,9 @@
                 ui.level1BaseBonus = baseBonus;
                 ui.level1MultipliedBonus = multipliedBonus;
 
+                transitionTargetLevel = 2;
                 gameState = STATE.LEVEL_TRANSITION;
-            } else {
+            } else if (currentLevel === 2) {
                 // Calculate Level 2 time and multiplier
                 level2EndTime = gameTimer;
                 const l2Seconds = (level2EndTime - level2StartTime) / 60;
@@ -635,6 +778,30 @@
                 ui.level2MultLabel = level2MultLabel;
                 ui.level2BaseBonus = baseBonus;
                 ui.level2MultipliedBonus = multipliedBonus;
+
+                transitionTargetLevel = 3;
+                gameState = STATE.LEVEL_TRANSITION;
+            } else {
+                // Calculate Level 3 time and multiplier
+                level3EndTime = gameTimer;
+                const l3Seconds = (level3EndTime - level3StartTime) / 60;
+                const l3Result = calcTimeMultiplier(l3Seconds);
+                level3Multiplier = l3Result.mult;
+                level3TimeBonus = l3Result.bonus;
+                level3MultLabel = l3Result.label;
+
+                // Apply multiplied completion bonus
+                const baseBonus = player.lives * 150;
+                const multipliedBonus = Math.floor(baseBonus * level3Multiplier);
+                player.score += multipliedBonus + level3TimeBonus;
+
+                // Store multiplier info for UI
+                ui.level3Time = l3Seconds;
+                ui.level3Multiplier = level3Multiplier;
+                ui.level3TimeBonus = level3TimeBonus;
+                ui.level3MultLabel = level3MultLabel;
+                ui.level3BaseBonus = baseBonus;
+                ui.level3MultipliedBonus = multipliedBonus;
 
                 gameState = STATE.WIN;
             }
@@ -678,6 +845,14 @@
         for (const ht of level.hatTricks) {
             if (!ht.collected && ht.x + 32 > cameraX - 50 && ht.x < cameraX + canvas.width + 50) {
                 ht.draw(ctx, cameraX, time);
+            }
+        }
+
+        if (level.breakaways) {
+            for (const ba of level.breakaways) {
+                if (!ba.collected && ba.x + 34 > cameraX - 50 && ba.x < cameraX + canvas.width + 50) {
+                    ba.draw(ctx, cameraX, time);
+                }
             }
         }
 
@@ -728,10 +903,10 @@
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 14px Arial';
             ctx.textAlign = 'center';
-            if (currentLevel === 1) {
-                ctx.fillText('NEXT LEVEL', finishX + 20, 445);
-            } else {
+            if (currentLevel === 3) {
                 ctx.fillText('FINISH', finishX + 20, 445);
+            } else {
+                ctx.fillText('NEXT LEVEL', finishX + 20, 445);
             }
         }
 

@@ -80,11 +80,11 @@ class UI {
         // HUD Background bar
         ctx.fillStyle = 'rgba(0, 10, 40, 0.75)';
         ctx.fillRect(0, 0, this.canvas.width, 55);
-        ctx.fillStyle = this.currentLevel === 2 ? '#8B4513' : '#0033a0';
+        ctx.fillStyle = this.currentLevel === 3 ? '#0a3520' : (this.currentLevel === 2 ? '#8B4513' : '#0033a0');
         ctx.fillRect(0, 53, this.canvas.width, 3);
 
         // Level indicator
-        ctx.fillStyle = this.currentLevel === 2 ? '#ff8844' : '#4a9eff';
+        ctx.fillStyle = this.currentLevel === 3 ? '#44ff88' : (this.currentLevel === 2 ? '#ff8844' : '#4a9eff');
         ctx.font = 'bold 14px Arial';
         ctx.textAlign = 'right';
         ctx.fillText('LEVEL ' + this.currentLevel, this.canvas.width - 15, 48);
@@ -185,6 +185,25 @@ class UI {
             ctx.fillText('[Z] squirt water bottle', this.canvas.width - 15, 48);
         }
 
+        // Breakaway indicator (Level 3)
+        if (player.breakawayActive) {
+            const timeLeft = Math.ceil(player.breakawayTimer / 60);
+            ctx.fillStyle = '#44ff88';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText('🏃 BREAKAWAY! ' + timeLeft + 's', this.canvas.width - 15, 22);
+
+            const progress = player.breakawayTimer / player.breakawayDuration;
+            ctx.fillStyle = 'rgba(68, 255, 136, 0.3)';
+            ctx.fillRect(this.canvas.width - 185, 28, 170, 8);
+            ctx.fillStyle = 'rgba(68, 255, 136, 0.7)';
+            ctx.fillRect(this.canvas.width - 185, 28, 170 * progress, 8);
+
+            ctx.fillStyle = 'rgba(68, 255, 136, 0.8)';
+            ctx.font = 'bold 11px Arial';
+            ctx.fillText('INVINCIBLE!', this.canvas.width - 15, 48);
+        }
+
         ctx.restore();
     }
 
@@ -245,9 +264,9 @@ class UI {
         ctx.fillStyle = '#888';
         ctx.font = '12px Arial';
         ctx.fillText('Collect 5 pucks = 1 shot  •  Shoot pucks at goalies to eliminate them!', w / 2, h / 2 + 62);
-        ctx.fillText('Level 1: Stanley Cup = SUPER JUMP  •  Level 2: Hat Trick = FREEZE GOALIES', w / 2, h / 2 + 80);
+        ctx.fillText('L1: Stanley Cup = SUPER JUMP  •  L2: Hat Trick = FREEZE  •  L3: Breakaway = INVINCIBLE', w / 2, h / 2 + 80);
         ctx.fillStyle = '#44ff44';
-        ctx.fillText('⚡ Finish fast for a SPEED MULTIPLIER on your bonus score!', w / 2, h / 2 + 96);
+        ctx.fillText('⚡ 3 Levels to conquer! Finish fast for a SPEED MULTIPLIER on your bonus score!', w / 2, h / 2 + 96);
 
         // Show top score if exists
         const entries = leaderboard ? leaderboard.getEntries() : [];
@@ -288,17 +307,23 @@ class UI {
         ctx.fillRect(0, 0, w, h);
 
         ctx.save();
-        ctx.shadowColor = targetLevel === 2 ? '#ff8844' : '#ffd700';
+        const transColor = targetLevel === 3 ? '#44ff88' : (targetLevel === 2 ? '#ff8844' : '#ffd700');
+        ctx.shadowColor = transColor;
         ctx.shadowBlur = 30;
 
-        ctx.fillStyle = targetLevel === 2 ? '#ff8844' : '#ffd700';
+        ctx.fillStyle = transColor;
         ctx.font = 'bold 52px Arial';
         ctx.textAlign = 'center';
         ctx.fillText('LEVEL ' + targetLevel, w / 2, h / 2 - 30);
 
         ctx.fillStyle = '#fff';
         ctx.font = '22px Arial';
-        if (targetLevel === 2) {
+        if (targetLevel === 3) {
+            ctx.fillText('The Stanley Cup Finals! Ultimate challenge!', w / 2, h / 2 + 20);
+            ctx.fillStyle = '#44ff88';
+            ctx.font = '18px Arial';
+            ctx.fillText('🏃 Grab Breakaways for 5 seconds of invincibility!', w / 2, h / 2 + 55);
+        } else if (targetLevel === 2) {
             ctx.fillText('The Playoffs Begin! Goalies are tougher!', w / 2, h / 2 + 20);
             ctx.fillStyle = '#4a9eff';
             ctx.font = '18px Arial';
@@ -309,9 +334,17 @@ class UI {
 
         ctx.restore();
 
-        // Show Level 1 time multiplier breakdown
-        if (this.level1Multiplier && this.level1Multiplier > 0) {
-            const multColor = this.level1Multiplier >= 3 ? '#44ff44' : this.level1Multiplier >= 2 ? '#ffdd44' : '#aaa';
+        // Show previous level time multiplier breakdown
+        const prevLevel = targetLevel - 1;
+        const prevTime = prevLevel === 2 ? this.level2Time : this.level1Time;
+        const prevMult = prevLevel === 2 ? this.level2Multiplier : this.level1Multiplier;
+        const prevLabel = prevLevel === 2 ? this.level2MultLabel : this.level1MultLabel;
+        const prevBase = prevLevel === 2 ? this.level2BaseBonus : this.level1BaseBonus;
+        const prevMultiplied = prevLevel === 2 ? this.level2MultipliedBonus : this.level1MultipliedBonus;
+        const prevTimeBonus = prevLevel === 2 ? this.level2TimeBonus : this.level1TimeBonus;
+
+        if (prevMult && prevMult > 0) {
+            const multColor = prevMult >= 3 ? '#44ff44' : prevMult >= 2 ? '#ffdd44' : '#aaa';
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             this._roundRect(ctx, w / 2 - 200, h / 2 + 65, 400, 80, 8);
             ctx.fill();
@@ -319,21 +352,21 @@ class UI {
             ctx.fillStyle = '#aac8ff';
             ctx.font = '14px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('Level 1 Time: ' + Leaderboard.formatTime(this.level1Time), w / 2, h / 2 + 82);
+            ctx.fillText('Level ' + prevLevel + ' Time: ' + Leaderboard.formatTime(prevTime), w / 2, h / 2 + 82);
 
             ctx.fillStyle = multColor;
             ctx.font = 'bold 20px Arial';
-            ctx.fillText(this.level1Multiplier + 'x MULTIPLIER', w / 2, h / 2 + 105);
+            ctx.fillText(prevMult + 'x MULTIPLIER', w / 2, h / 2 + 105);
 
-            if (this.level1MultLabel) {
+            if (prevLabel) {
                 ctx.fillStyle = multColor;
                 ctx.font = 'bold 14px Arial';
-                ctx.fillText(this.level1MultLabel, w / 2, h / 2 + 122);
+                ctx.fillText(prevLabel, w / 2, h / 2 + 122);
             }
 
             ctx.fillStyle = '#ffd700';
             ctx.font = '13px Arial';
-            ctx.fillText('Bonus: ' + this.level1BaseBonus + ' × ' + this.level1Multiplier + ' = ' + this.level1MultipliedBonus + ' + ' + this.level1TimeBonus + ' speed bonus', w / 2, h / 2 + 140);
+            ctx.fillText('Bonus: ' + prevBase + ' × ' + prevMult + ' = ' + prevMultiplied + ' + ' + prevTimeBonus + ' speed bonus', w / 2, h / 2 + 140);
         }
 
         ctx.fillStyle = '#aaa';
@@ -417,15 +450,15 @@ class UI {
         ctx.font = '16px Arial';
         ctx.fillText('Pucks: ' + pucksCollected + '  |  Lives Remaining: ' + player.lives, w / 2, h / 2 - 25);
 
-        // Time multiplier breakdown
-        if (this.level2Multiplier && this.level2Multiplier > 0) {
-            const m2Color = this.level2Multiplier >= 3 ? '#44ff44' : this.level2Multiplier >= 2 ? '#ffdd44' : '#aaa';
+        // Time multiplier breakdown for Level 3
+        if (this.level3Multiplier && this.level3Multiplier > 0) {
+            const m3Color = this.level3Multiplier >= 3 ? '#44ff44' : this.level3Multiplier >= 2 ? '#ffdd44' : '#aaa';
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             this._roundRect(ctx, w / 2 - 200, h / 2 - 15, 400, 30, 6);
             ctx.fill();
-            ctx.fillStyle = m2Color;
+            ctx.fillStyle = m3Color;
             ctx.font = 'bold 14px Arial';
-            const multText = 'Level 2: ' + this.level2Multiplier + 'x' + (this.level2MultLabel ? ' ' + this.level2MultLabel : '') + '  (+' + (this.level2MultipliedBonus + this.level2TimeBonus) + ' bonus)';
+            const multText = 'Level 3: ' + this.level3Multiplier + 'x' + (this.level3MultLabel ? ' ' + this.level3MultLabel : '') + '  (+' + (this.level3MultipliedBonus + this.level3TimeBonus) + ' bonus)';
             ctx.fillText(multText, w / 2, h / 2 - 2);
         }
 

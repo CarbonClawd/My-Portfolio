@@ -12,7 +12,7 @@ class Player {
         this.gravity = 0.6;
         this.grounded = false;
         this.facing = 1; // 1 = right, -1 = left
-        this.lives = 3;
+        this.lives = 5;
         this.score = 0;
         this.invincible = false;
         this.invincibleTimer = 0;
@@ -28,6 +28,11 @@ class Player {
         this.hatTrickTimer = 0;
         this.hatTrickDuration = 600; // 10 seconds at 60fps
         this.waterBottleCooldown = 0;
+
+        // Breakaway power-up (invincibility)
+        this.breakawayActive = false;
+        this.breakawayTimer = 0;
+        this.breakawayDuration = 300; // 5 seconds at 60fps
 
         // Shooting
         this.pucksCollected = 0;
@@ -78,6 +83,11 @@ class Player {
     activateHatTrick() {
         this.hatTrickActive = true;
         this.hatTrickTimer = this.hatTrickDuration;
+    }
+
+    activateBreakaway() {
+        this.breakawayActive = true;
+        this.breakawayTimer = this.breakawayDuration;
     }
 
     update(keys, platforms) {
@@ -156,6 +166,14 @@ class Player {
             }
         }
 
+        // Breakaway timer
+        if (this.breakawayActive) {
+            this.breakawayTimer--;
+            if (this.breakawayTimer <= 0) {
+                this.breakawayActive = false;
+            }
+        }
+
         // Invincibility timer (after getting hit)
         if (this.invincible) {
             this.invincibleTimer--;
@@ -182,7 +200,7 @@ class Player {
     }
 
     loseLife() {
-        if (!this.invincible) {
+        if (!this.invincible && !this.breakawayActive) {
             this.lives--;
             this.invincible = true;
             this.invincibleTimer = 120; // 2 seconds
@@ -220,6 +238,12 @@ class Player {
             ctx.shadowBlur = 20;
         }
 
+        // Glow effect when breakaway is active
+        if (this.breakawayActive) {
+            ctx.shadowColor = '#44ff88';
+            ctx.shadowBlur = 30;
+        }
+
         // Flip for facing direction
         if (this.facing === -1) {
             ctx.translate(cx, 0);
@@ -228,8 +252,8 @@ class Player {
         }
 
         const legOffset = this.skating ? Math.sin(this.animFrame * Math.PI / 3) * 5 : 0;
-        const jerseyColor = this.superJump ? '#ffd700' : (this.hatTrickActive ? '#4a9eff' : '#c8102e');
-        const jerseyDark = this.superJump ? '#c9a800' : (this.hatTrickActive ? '#2a6ecc' : '#9a0c24');
+        const jerseyColor = this.breakawayActive ? '#44ff88' : (this.superJump ? '#ffd700' : (this.hatTrickActive ? '#4a9eff' : '#c8102e'));
+        const jerseyDark = this.breakawayActive ? '#22cc55' : (this.superJump ? '#c9a800' : (this.hatTrickActive ? '#2a6ecc' : '#9a0c24'));
         const pantsColor = '#1a3a6e';
 
         // === SKATES ===
