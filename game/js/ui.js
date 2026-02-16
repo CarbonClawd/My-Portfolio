@@ -265,15 +265,17 @@ class UI {
         ctx.font = '12px Arial';
         ctx.fillText('Collect 5 pucks = 1 shot  •  Shoot pucks at goalies to eliminate them!', w / 2, h / 2 + 62);
         ctx.fillText('L1: Stanley Cup = SUPER JUMP  •  L2: Hat Trick = FREEZE  •  L3: Breakaway = INVINCIBLE', w / 2, h / 2 + 80);
+        ctx.fillStyle = '#44ff88';
+        ctx.fillText('L3: Moving platforms, crumbling ice, checkpoints & a BOSS GOALIE!', w / 2, h / 2 + 96);
         ctx.fillStyle = '#44ff44';
-        ctx.fillText('⚡ 3 Levels to conquer! Finish fast for a SPEED MULTIPLIER on your bonus score!', w / 2, h / 2 + 96);
+        ctx.fillText('⚡ 3 Levels to conquer! Finish fast for a SPEED MULTIPLIER on your bonus score!', w / 2, h / 2 + 112);
 
         // Show top score if exists
         const entries = leaderboard ? leaderboard.getEntries() : [];
         if (entries.length > 0) {
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 14px Arial';
-            ctx.fillText('🏆 Top Score: ' + entries[0].name + ' — ' + entries[0].score + ' pts (' + Leaderboard.formatTime(entries[0].time) + ')', w / 2, h / 2 + 108);
+            ctx.fillText('🏆 Top Score: ' + entries[0].name + ' — ' + entries[0].score + ' pts (' + Leaderboard.formatTime(entries[0].time) + ')', w / 2, h / 2 + 128);
         }
 
         // Start prompt
@@ -281,13 +283,13 @@ class UI {
         ctx.font = 'bold 24px Arial';
         const blink = Math.sin(Date.now() * 0.005) > 0;
         if (blink) {
-            ctx.fillText('Press ENTER to Start', w / 2, h / 2 + 148);
+            ctx.fillText('Press ENTER to Start', w / 2, h / 2 + 160);
         }
 
         // Leaderboard hint
         ctx.fillStyle = '#6a8abf';
         ctx.font = '16px Arial';
-        ctx.fillText('Press L for Leaderboard', w / 2, h / 2 + 178);
+        ctx.fillText('Press L for Leaderboard', w / 2, h / 2 + 188);
 
         ctx.save();
         ctx.shadowColor = '#ffd700';

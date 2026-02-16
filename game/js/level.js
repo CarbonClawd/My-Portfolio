@@ -271,6 +271,237 @@ class HatTrick {
     }
 }
 
+// Moving Platform
+class MovingPlatform {
+    constructor(x, y, width, height, type, moveX, moveY, moveSpeed) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height || 18;
+        this.type = type || 'ice';
+        this.startX = x;
+        this.startY = y;
+        this.moveRangeX = moveX || 0;
+        this.moveRangeY = moveY || 0;
+        this.moveSpeed = moveSpeed || 0.02;
+        this.movePhase = 0;
+        this.currentX = x;
+        this.currentY = y;
+        this.velX = 0;
+    }
+
+    update(time) {
+        this.movePhase += this.moveSpeed;
+        const prevX = this.currentX;
+        this.currentX = this.startX + Math.sin(this.movePhase) * this.moveRangeX;
+        this.currentY = this.startY + Math.sin(this.movePhase) * this.moveRangeY;
+        this.velX = this.currentX - prevX;
+    }
+
+    draw(ctx, cameraX) {
+        const drawX = this.currentX - cameraX;
+        const drawY = this.currentY;
+
+        ctx.save();
+
+        // Moving platform - glowing edges
+        ctx.fillStyle = 'rgba(180, 220, 255, 0.9)';
+        ctx.fillRect(drawX, drawY, this.width, this.height);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.fillRect(drawX, drawY, this.width, 3);
+
+        // Arrow indicators
+        ctx.fillStyle = 'rgba(100, 180, 255, 0.5)';
+        if (this.moveRangeX !== 0) {
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('◄►', drawX + this.width / 2, drawY + this.height / 2 + 4);
+        }
+        if (this.moveRangeY !== 0) {
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('▲▼', drawX + this.width / 2, drawY + this.height / 2 + 4);
+        }
+
+        ctx.strokeStyle = '#4a9eff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(drawX, drawY, this.width, this.height);
+
+        ctx.restore();
+    }
+}
+
+// Crumbling Platform
+class CrumblePlatform {
+    constructor(x, y, width, height) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height || 18;
+        this.type = 'crumble';
+        this.crumbling = false;
+        this.crumbleTimer = 0;
+        this.crumbleDuration = 45; // frames before falling
+        this.fallen = false;
+        this.fallSpeed = 0;
+        this.currentX = x;
+        this.currentY = y;
+        this.shakeOffset = 0;
+        this.particles = [];
+    }
+
+    update() {
+        this.currentX = this.x;
+        this.currentY = this.y;
+
+        if (this.crumbling && !this.fallen) {
+            this.crumbleTimer--;
+            this.shakeOffset = (Math.random() - 0.5) * 4;
+            // Spawn crumble particles
+            if (Math.random() < 0.3) {
+                this.particles.push({
+                    x: this.x + Math.random() * this.width,
+                    y: this.y + this.height,
+                    velY: 1 + Math.random() * 2,
+                    life: 20,
+                    size: 2 + Math.random() * 3
+                });
+            }
+            if (this.crumbleTimer <= 0) {
+                this.fallen = true;
+            }
+        }
+
+        if (this.fallen) {
+            this.fallSpeed += 0.5;
+            this.y += this.fallSpeed;
+            this.currentY = this.y;
+        }
+
+        // Update particles
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            this.particles[i].y += this.particles[i].velY;
+            this.particles[i].life--;
+            if (this.particles[i].life <= 0) this.particles.splice(i, 1);
+        }
+    }
+
+    draw(ctx, cameraX) {
+        if (this.fallen && this.y > 800) return;
+
+        const drawX = this.x - cameraX + (this.crumbling ? this.shakeOffset : 0);
+        const drawY = this.currentY;
+
+        ctx.save();
+
+        if (this.fallen) {
+            ctx.globalAlpha = Math.max(0, 1 - (this.y - 520) / 200);
+        }
+
+        // Cracked ice look
+        ctx.fillStyle = this.crumbling ? 'rgba(255, 200, 200, 0.9)' : 'rgba(200, 225, 255, 0.9)';
+        ctx.fillRect(drawX, drawY, this.width, this.height);
+
+        // Crack lines when crumbling
+        if (this.crumbling) {
+            ctx.strokeStyle = 'rgba(200, 50, 50, 0.6)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(drawX + this.width * 0.3, drawY);
+            ctx.lineTo(drawX + this.width * 0.5, drawY + this.height);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(drawX + this.width * 0.7, drawY);
+            ctx.lineTo(drawX + this.width * 0.4, drawY + this.height);
+            ctx.stroke();
+        }
+
+        // Warning indicator
+        ctx.fillStyle = 'rgba(255, 100, 100, 0.4)';
+        ctx.fillRect(drawX, drawY + this.height - 2, this.width, 2);
+
+        // Exclamation mark
+        if (!this.crumbling && !this.fallen) {
+            ctx.fillStyle = 'rgba(255, 100, 100, 0.5)';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('!', drawX + this.width / 2, drawY + this.height / 2 + 4);
+        }
+
+        // Draw particles
+        for (const p of this.particles) {
+            ctx.globalAlpha = p.life / 20;
+            ctx.fillStyle = '#c8d8ff';
+            ctx.fillRect(p.x - cameraX, p.y, p.size, p.size);
+        }
+
+        ctx.restore();
+    }
+}
+
+// Checkpoint Flag
+class Checkpoint {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 20;
+        this.height = 50;
+        this.activated = false;
+        this.animTimer = 0;
+    }
+
+    update(time) {
+        this.animTimer = time;
+    }
+
+    draw(ctx, cameraX, time) {
+        const drawX = this.x - cameraX;
+        const drawY = this.y;
+
+        ctx.save();
+
+        // Pole
+        ctx.fillStyle = this.activated ? '#ffd700' : '#888';
+        ctx.fillRect(drawX + 8, drawY, 4, this.height);
+
+        // Flag
+        const wave = Math.sin((time || 0) * 0.08) * 3;
+        ctx.fillStyle = this.activated ? '#44ff88' : '#c8102e';
+        ctx.beginPath();
+        ctx.moveTo(drawX + 12, drawY + 2);
+        ctx.lineTo(drawX + 32 + wave, drawY + 10);
+        ctx.lineTo(drawX + 12, drawY + 20);
+        ctx.closePath();
+        ctx.fill();
+
+        // Glow when activated
+        if (this.activated) {
+            ctx.shadowColor = '#44ff88';
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = 'rgba(68, 255, 136, 0.3)';
+            ctx.beginPath();
+            ctx.arc(drawX + 10, drawY + 10, 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#44ff88';
+            ctx.font = 'bold 9px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('✓', drawX + 10, drawY - 5);
+        }
+
+        // Base
+        ctx.fillStyle = this.activated ? '#ffd700' : '#666';
+        ctx.fillRect(drawX + 2, drawY + this.height - 4, 16, 4);
+
+        ctx.restore();
+    }
+
+    getBounds() {
+        return { x: this.x, y: this.y, width: this.width, height: this.height };
+    }
+}
+
 class Platform {
     constructor(x, y, width, height, type) {
         this.x = x;
@@ -452,7 +683,23 @@ function createLevel1() {
     stanleyCups.push(new StanleyCup(2835, 215));
     stanleyCups.push(new StanleyCup(4145, 255));
 
-    return { platforms, pucks, goalies, stanleyCups, hatTricks };
+    // Moving platforms
+    const movingPlatforms = [];
+    movingPlatforms.push(new MovingPlatform(830, 440, 80, 18, 'ice', 60, 0, 0.02));
+    movingPlatforms.push(new MovingPlatform(1520, 380, 80, 18, 'ice', 0, 40, 0.025));
+    movingPlatforms.push(new MovingPlatform(2950, 340, 90, 18, 'ice', 50, 0, 0.02));
+
+    // Crumbling platforms
+    const crumblePlatforms = [];
+    crumblePlatforms.push(new CrumblePlatform(1750, 420, 80, 18));
+    crumblePlatforms.push(new CrumblePlatform(3200, 360, 80, 18));
+
+    // Checkpoints
+    const checkpoints = [];
+    checkpoints.push(new Checkpoint(1600, 470));
+    checkpoints.push(new Checkpoint(3100, 470));
+
+    return { platforms, pucks, goalies, stanleyCups, hatTricks, movingPlatforms, crumblePlatforms, checkpoints };
 }
 
 // Level 2 builder - harder, different layout, Hat Trick power-ups
@@ -577,7 +824,26 @@ function createLevel2() {
     hatTricks.push(new HatTrick(2485, 205));
     hatTricks.push(new HatTrick(3815, 225));
 
-    return { platforms, pucks, goalies, stanleyCups, hatTricks };
+    // Moving platforms
+    const movingPlatforms = [];
+    movingPlatforms.push(new MovingPlatform(680, 420, 80, 18, 'ice', 70, 0, 0.025));
+    movingPlatforms.push(new MovingPlatform(1350, 360, 75, 18, 'ice', 0, 50, 0.03));
+    movingPlatforms.push(new MovingPlatform(2620, 340, 80, 18, 'ice', 60, 0, 0.025));
+    movingPlatforms.push(new MovingPlatform(3950, 320, 75, 18, 'ice', 50, 30, 0.02));
+
+    // Crumbling platforms
+    const crumblePlatforms = [];
+    crumblePlatforms.push(new CrumblePlatform(1180, 420, 75, 18));
+    crumblePlatforms.push(new CrumblePlatform(2280, 380, 75, 18));
+    crumblePlatforms.push(new CrumblePlatform(3600, 400, 70, 18));
+
+    // Checkpoints
+    const checkpoints = [];
+    checkpoints.push(new Checkpoint(1400, 470));
+    checkpoints.push(new Checkpoint(2800, 470));
+    checkpoints.push(new Checkpoint(4200, 470));
+
+    return { platforms, pucks, goalies, stanleyCups, hatTricks, movingPlatforms, crumblePlatforms, checkpoints };
 }
 
 // Breakaway Power-Up (Level 3) - Invincibility for 5 seconds
@@ -870,7 +1136,37 @@ function createLevel3() {
     breakaways.push(new Breakaway(2605, 225));
     breakaways.push(new Breakaway(3960, 245));
 
-    return { platforms, pucks, goalies, stanleyCups, hatTricks, breakaways };
+    // Moving platforms - more and trickier
+    const movingPlatforms = [];
+    movingPlatforms.push(new MovingPlatform(540, 380, 70, 18, 'ice', 80, 0, 0.03));
+    movingPlatforms.push(new MovingPlatform(1010, 350, 65, 18, 'ice', 0, 60, 0.035));
+    movingPlatforms.push(new MovingPlatform(1600, 400, 70, 18, 'ice', 70, 0, 0.03));
+    movingPlatforms.push(new MovingPlatform(2250, 320, 65, 18, 'ice', 60, 40, 0.025));
+    movingPlatforms.push(new MovingPlatform(2730, 360, 70, 18, 'ice', 0, 70, 0.03));
+    movingPlatforms.push(new MovingPlatform(3480, 380, 65, 18, 'ice', 80, 0, 0.035));
+    movingPlatforms.push(new MovingPlatform(4130, 340, 70, 18, 'ice', 60, 50, 0.025));
+
+    // Crumbling platforms - more dangerous
+    const crumblePlatforms = [];
+    crumblePlatforms.push(new CrumblePlatform(720, 400, 65, 18));
+    crumblePlatforms.push(new CrumblePlatform(1300, 390, 65, 18));
+    crumblePlatforms.push(new CrumblePlatform(1950, 380, 60, 18));
+    crumblePlatforms.push(new CrumblePlatform(2580, 350, 65, 18));
+    crumblePlatforms.push(new CrumblePlatform(3270, 360, 60, 18));
+    crumblePlatforms.push(new CrumblePlatform(3930, 370, 65, 18));
+    crumblePlatforms.push(new CrumblePlatform(4580, 390, 60, 18));
+
+    // Checkpoints
+    const checkpoints = [];
+    checkpoints.push(new Checkpoint(1200, 470));
+    checkpoints.push(new Checkpoint(2350, 470));
+    checkpoints.push(new Checkpoint(3400, 470));
+    checkpoints.push(new Checkpoint(4600, 470));
+
+    // Boss goalie at the end
+    const bossGoalie = new BossGoalie(4750, 420);
+
+    return { platforms, pucks, goalies, stanleyCups, hatTricks, breakaways, movingPlatforms, crumblePlatforms, checkpoints, bossGoalie };
 }
 
 // Legacy function for backward compatibility

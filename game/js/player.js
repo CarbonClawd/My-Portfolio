@@ -34,10 +34,34 @@ class Player {
         this.breakawayTimer = 0;
         this.breakawayDuration = 300; // 5 seconds at 60fps
 
+        // Double jump
+        this.canDoubleJump = false;
+        this.hasDoubleJumped = false;
+
+        // Dash
+        this.dashing = false;
+        this.dashTimer = 0;
+        this.dashDuration = 12; // frames
+        this.dashSpeed = 14;
+        this.dashCooldown = 0;
+        this.dashCooldownMax = 45;
+
+        // Combo system
+        this.comboCount = 0;
+        this.comboTimer = 0;
+        this.comboDuration = 180; // 3 seconds to chain
+
+        // Checkpoint
+        this.checkpointX = 50;
+        this.checkpointY = 400;
+
         // Shooting
         this.pucksCollected = 0;
         this.shots = 0; // each shot costs 5 pucks
         this.shootCooldown = 0;
+
+        // Skin
+        this.skinIndex = 0;
 
         // Animation
         this.animFrame = 0;
@@ -90,27 +114,73 @@ class Player {
         this.breakawayTimer = this.breakawayDuration;
     }
 
+    addCombo(points) {
+        this.comboCount++;
+        this.comboTimer = this.comboDuration;
+        const multiplier = Math.min(this.comboCount, 5);
+        this.score += points * multiplier;
+        return { count: this.comboCount, multiplier: multiplier };
+    }
+
+    startDash() {
+        if (this.dashCooldown <= 0 && !this.dashing) {
+            this.dashing = true;
+            this.dashTimer = this.dashDuration;
+            this.dashCooldown = this.dashCooldownMax;
+            return true;
+        }
+        return false;
+    }
+
     update(keys, platforms) {
-        // Horizontal movement
-        this.skating = false;
-        if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
-            this.velX = -this.speed;
-            this.facing = -1;
-            this.skating = true;
-        } else if (keys['ArrowRight'] || keys['d'] || keys['D']) {
-            this.velX = this.speed;
-            this.facing = 1;
-            this.skating = true;
-        } else {
-            this.velX *= 0.8; // friction on ice
-            if (Math.abs(this.velX) < 0.5) this.velX = 0;
+        // Combo timer
+        if (this.comboTimer > 0) {
+            this.comboTimer--;
+            if (this.comboTimer <= 0) {
+                this.comboCount = 0;
+            }
         }
 
-        // Jump
-        if ((keys['ArrowUp'] || keys['w'] || keys['W'] || keys[' ']) && this.grounded) {
+        // Dash cooldown
+        if (this.dashCooldown > 0) this.dashCooldown--;
+
+        // Dash movement override
+        if (this.dashing) {
+            this.dashTimer--;
+            this.velX = this.dashSpeed * this.facing;
+            this.skating = true;
+            if (this.dashTimer <= 0) {
+                this.dashing = false;
+            }
+        } else {
+            // Horizontal movement
+            this.skating = false;
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                this.velX = -this.speed;
+                this.facing = -1;
+                this.skating = true;
+            } else if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                this.velX = this.speed;
+                this.facing = 1;
+                this.skating = true;
+            } else {
+                this.velX *= 0.8; // friction on ice
+                if (Math.abs(this.velX) < 0.5) this.velX = 0;
+            }
+        }
+
+        // Jump (grounded) — handled via keysJustPressed in game.js now for double jump
+        // Basic grounded jump still works here as fallback
+        if ((keys['ArrowUp'] || keys['w'] || keys['W'] || keys[' ']) && this.grounded && !this._jumpHeld) {
             const jumpMultiplier = this.superJump ? 1.7 : 1;
             this.velY = this.jumpForce * jumpMultiplier;
             this.grounded = false;
+            this.hasDoubleJumped = false;
+            this._jumpHeld = true;
+            this._justJumped = true;
+        }
+        if (!(keys['ArrowUp'] || keys['w'] || keys['W'] || keys[' '])) {
+            this._jumpHeld = false;
         }
 
         // Shoot cooldown
@@ -120,7 +190,11 @@ class Player {
         if (this.waterBottleCooldown > 0) this.waterBottleCooldown--;
 
         // Gravity
-        this.velY += this.gravity;
+        if (!this.dashing) {
+            this.velY += this.gravity;
+        } else {
+            this.velY += this.gravity * 0.3; // reduced gravity during dash
+        }
 
         // Move X
         this.x += this.velX;
@@ -131,15 +205,38 @@ class Player {
         // Platform collision
         this.grounded = false;
         for (const plat of platforms) {
+            // Handle moving platforms
+            const platX = plat.currentX !== undefined ? plat.currentX : plat.x;
+            const platY = plat.currentY !== undefined ? plat.currentY : plat.y;
+            const platW = plat.width;
+            const platH = plat.height || 20;
+
             if (this.velY >= 0 &&
-                this.x + this.width > plat.x &&
-                this.x < plat.x + plat.width &&
-                this.y + this.height >= plat.y &&
-                this.y + this.height <= plat.y + plat.height + this.velY + 2) {
-                this.y = plat.y - this.height;
-                this.velY = 0;
-                this.grounded = true;
+                this.x + this.width > platX &&
+                this.x < platX + platW &&
+                this.y + this.height >= platY &&
+                this.y + this.height <= platY + platH + this.velY + 2) {
+
+                // Crumbling platform check
+                if (plat.type === 'crumble' && !plat.crumbling) {
+                    plat.crumbling = true;
+                    plat.crumbleTimer = plat.crumbleDuration || 45;
+                }
+
+                if (!plat.fallen) {
+                    this.y = platY - this.height;
+                    this.velY = 0;
+                    this.grounded = true;
+
+                    // Move with moving platform
+                    if (plat.velX) this.x += plat.velX;
+                }
             }
+        }
+
+        // Reset double jump when grounded
+        if (this.grounded) {
+            this.hasDoubleJumped = false;
         }
 
         // Don't go below world bottom (fallback)
@@ -204,11 +301,20 @@ class Player {
             this.lives--;
             this.invincible = true;
             this.invincibleTimer = 120; // 2 seconds
-            this.x = 50;
-            this.y = 300;
+            this.x = this.checkpointX;
+            this.y = this.checkpointY;
             this.velX = 0;
             this.velY = 0;
+            this.dashing = false;
+            this.dashTimer = 0;
+            this.comboCount = 0;
+            this.comboTimer = 0;
         }
+    }
+
+    setCheckpoint(x, y) {
+        this.checkpointX = x;
+        this.checkpointY = y;
     }
 
     activateSuperJump() {

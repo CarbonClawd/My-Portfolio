@@ -1,3 +1,261 @@
+// Boss Goalie - Level 3 End Boss
+class BossGoalie {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 80;
+        this.height = 100;
+        this.alive = true;
+        this.hp = 10;
+        this.maxHp = 10;
+        this.phase = 1; // 1, 2, 3 as HP drops
+        this.direction = 1;
+        this.speed = 1.5;
+        this.patrolRange = 80;
+        this.startX = x;
+        this.dying = false;
+        this.deathTimer = 0;
+        this.animTimer = 0;
+        this.hitFlash = 0;
+        this.attackTimer = 0;
+        this.attackCooldown = 120;
+        this.slamming = false;
+        this.slamTimer = 0;
+        this.shockwaveX = 0;
+        this.shockwaveActive = false;
+        this.shockwaveTimer = 0;
+        this.blockChance = 0.3;
+    }
+
+    update(playerX) {
+        if (!this.alive) return;
+        if (this.dying) {
+            this.deathTimer++;
+            if (this.deathTimer > 120) this.alive = false;
+            return;
+        }
+
+        // Phase transitions
+        if (this.hp <= 3) { this.phase = 3; this.speed = 3; this.blockChance = 0.5; }
+        else if (this.hp <= 6) { this.phase = 2; this.speed = 2.2; this.blockChance = 0.4; }
+
+        // Hit flash
+        if (this.hitFlash > 0) this.hitFlash--;
+
+        // Patrol
+        this.x += this.speed * this.direction;
+        if (this.x > this.startX + this.patrolRange) this.direction = -1;
+        if (this.x < this.startX - this.patrolRange) this.direction = 1;
+
+        // Face player
+        if (playerX !== undefined) {
+            if (playerX < this.x) this.direction = -1;
+            else this.direction = 1;
+        }
+
+        // Attack timer
+        this.attackTimer++;
+        const cooldown = this.phase === 3 ? 60 : (this.phase === 2 ? 90 : 120);
+        if (this.attackTimer >= cooldown && !this.slamming) {
+            this.slamming = true;
+            this.slamTimer = 30;
+            this.attackTimer = 0;
+        }
+
+        if (this.slamming) {
+            this.slamTimer--;
+            if (this.slamTimer <= 0) {
+                this.slamming = false;
+                this.shockwaveActive = true;
+                this.shockwaveX = this.x + this.width / 2;
+                this.shockwaveTimer = 40;
+            }
+        }
+
+        if (this.shockwaveActive) {
+            this.shockwaveTimer--;
+            if (this.shockwaveTimer <= 0) this.shockwaveActive = false;
+        }
+
+        this.animTimer++;
+    }
+
+    hit() {
+        if (this.canBlockShot()) return false;
+        this.hp--;
+        this.hitFlash = 15;
+        if (this.hp <= 0) {
+            this.dying = true;
+            this.deathTimer = 0;
+        }
+        return true;
+    }
+
+    canBlockShot() {
+        return Math.random() < this.blockChance;
+    }
+
+    draw(ctx, cameraX) {
+        if (!this.alive && !this.dying) return;
+        const drawX = this.x - cameraX;
+        const drawY = this.y;
+
+        ctx.save();
+
+        if (this.dying) {
+            ctx.globalAlpha = 1 - (this.deathTimer / 120);
+            ctx.translate(drawX + this.width / 2, drawY + this.height / 2);
+            ctx.rotate(this.deathTimer * 0.05);
+            ctx.scale(1 + this.deathTimer * 0.01, 1 + this.deathTimer * 0.01);
+            ctx.translate(-(drawX + this.width / 2), -(drawY + this.height / 2));
+        }
+
+        // Hit flash
+        if (this.hitFlash > 0 && this.hitFlash % 4 < 2) {
+            ctx.fillStyle = '#ff0000';
+        } else {
+            // Phase colors
+            const colors = { 1: '#1a5e1a', 2: '#8B4513', 3: '#8B0000' };
+            ctx.fillStyle = colors[this.phase];
+        }
+
+        // Body - larger goalie
+        const sway = this.slamming ? Math.sin(this.slamTimer * 0.5) * 5 : 0;
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.beginPath();
+        ctx.ellipse(drawX + this.width / 2, drawY + this.height, this.width / 2 + 5, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Leg pads
+        ctx.fillStyle = '#f5f5f5';
+        ctx.fillRect(drawX + 5, drawY + 55 + sway, 28, 40);
+        ctx.fillRect(drawX + this.width - 33, drawY + 55 - sway, 28, 40);
+
+        // Body
+        const bodyColor = this.hitFlash > 0 ? '#ff4444' : (this.phase === 3 ? '#8B0000' : (this.phase === 2 ? '#8B4513' : '#1a5e1a'));
+        ctx.fillStyle = bodyColor;
+        ctx.fillRect(drawX + 5, drawY + 20, this.width - 10, 45);
+
+        // Chest protector
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(drawX + 8, drawY + 22, this.width - 16, 15);
+
+        // Jersey stripes
+        ctx.fillStyle = '#ffd700';
+        ctx.fillRect(drawX + 8, drawY + 38, this.width - 16, 4);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(drawX + 8, drawY + 42, this.width - 16, 3);
+
+        // Arms
+        ctx.fillStyle = bodyColor;
+        ctx.fillRect(drawX - 8, drawY + 22, 16, 30);
+        ctx.fillRect(drawX + this.width - 8, drawY + 22, 16, 30);
+
+        // Blocker (raised when slamming)
+        const blockerY = this.slamming ? -15 : 0;
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(drawX + this.width - 6, drawY + 45 + blockerY, 18, 14);
+
+        // Catching glove
+        ctx.fillStyle = '#f0f0f0';
+        ctx.beginPath();
+        ctx.ellipse(drawX - 2, drawY + 48, 12, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Helmet
+        ctx.fillStyle = this.hitFlash > 0 ? '#ff6666' : '#f0f0f0';
+        ctx.beginPath();
+        ctx.ellipse(drawX + this.width / 2, drawY + 12, 22, 18, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cage
+        ctx.strokeStyle = '#999';
+        ctx.lineWidth = 1.5;
+        for (let i = -12; i <= 12; i += 4) {
+            ctx.beginPath();
+            ctx.moveTo(drawX + this.width / 2 + i, drawY + 2);
+            ctx.lineTo(drawX + this.width / 2 + i, drawY + 24);
+            ctx.stroke();
+        }
+
+        // Eyes - red and angry
+        const eyeGlow = this.phase === 3 ? '#ff0000' : (this.phase === 2 ? '#ff4400' : '#ff2200');
+        ctx.fillStyle = eyeGlow;
+        ctx.beginPath();
+        ctx.ellipse(drawX + this.width / 2 - 6, drawY + 12, 4, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(drawX + this.width / 2 + 6, drawY + 12, 4, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Goalie stick
+        ctx.strokeStyle = '#6B3410';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(drawX + this.width, drawY + 50);
+        ctx.lineTo(drawX + this.width + 10, drawY + this.height - 5);
+        ctx.stroke();
+        ctx.fillStyle = '#f5f5f5';
+        ctx.fillRect(drawX + this.width + 4, drawY + this.height - 18, 12, 18);
+
+        // HP bar
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(drawX - 5, drawY - 20, this.width + 10, 12);
+        const hpPct = this.hp / this.maxHp;
+        const hpColor = hpPct > 0.5 ? '#44ff44' : (hpPct > 0.25 ? '#ffaa00' : '#ff2222');
+        ctx.fillStyle = hpColor;
+        ctx.fillRect(drawX - 3, drawY - 18, (this.width + 6) * hpPct, 8);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(drawX - 5, drawY - 20, this.width + 10, 12);
+
+        // Boss label
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('⭐ BOSS GOALIE ⭐', drawX + this.width / 2, drawY - 25);
+
+        // Phase indicator
+        ctx.fillStyle = this.phase === 3 ? '#ff0000' : (this.phase === 2 ? '#ff8800' : '#44ff44');
+        ctx.font = 'bold 10px Arial';
+        ctx.fillText('Phase ' + this.phase, drawX + this.width / 2, drawY - 35);
+
+        // Shockwave
+        if (this.shockwaveActive) {
+            const radius = (40 - this.shockwaveTimer) * 4;
+            const alpha = this.shockwaveTimer / 40;
+            ctx.strokeStyle = 'rgba(255, 50, 50, ' + alpha + ')';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(this.shockwaveX - cameraX, drawY + this.height, radius, Math.PI, 0);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255, 50, 50, ' + (alpha * 0.2) + ')';
+            ctx.beginPath();
+            ctx.arc(this.shockwaveX - cameraX, drawY + this.height, radius, Math.PI, 0);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    getBounds() {
+        return { x: this.x, y: this.y, width: this.width, height: this.height };
+    }
+
+    getShockwaveBounds() {
+        if (!this.shockwaveActive) return null;
+        const radius = (40 - this.shockwaveTimer) * 4;
+        return {
+            x: this.shockwaveX - radius,
+            y: this.y + this.height - 20,
+            width: radius * 2,
+            height: 20
+        };
+    }
+}
+
 // Enemies - Goalies
 class Goalie {
     constructor(x, y, patrolRange, difficulty) {

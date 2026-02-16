@@ -129,6 +129,8 @@
     });
 
     function startGame() {
+        audio.init();
+        audio.startMusic(1);
         gameState = STATE.PLAYING;
         currentLevel = 1;
         player = new Player(50, 400);
@@ -183,6 +185,7 @@
         waterBottles = [];
         screenShake = 0;
         level2StartTime = gameTimer;
+        audio.startMusic(2);
     }
 
     function startLevel3() {
@@ -192,12 +195,18 @@
 
         player.x = 50;
         player.y = 400;
+        player.checkpointX = 50;
+        player.checkpointY = 400;
         player.velX = 0;
         player.velY = 0;
         player.superJump = false;
         player.hatTrickActive = false;
         player.breakawayActive = false;
         player.invincible = false;
+        player.dashing = false;
+        player.dashTimer = 0;
+        player.comboCount = 0;
+        player.comboTimer = 0;
 
         level = createLevel3();
         ui.currentLevel = 3;
@@ -208,6 +217,7 @@
         waterBottles = [];
         screenShake = 0;
         level3StartTime = gameTimer;
+        audio.startMusic(3);
     }
 
     // Collision detection helper
@@ -549,6 +559,7 @@
             shotPucks.push(new ShotPuck(shotX, shotY, player.facing));
             spawnParticles(shotX, shotY, '#ffd700', 5);
             screenShake = 3;
+            audio.playShot();
         }
 
         // SQUIRTING WATER BOTTLE (Hat Trick power-up)
@@ -558,6 +569,7 @@
             waterBottles.push(new WaterBottle(bottleX, bottleY, player.facing));
             spawnParticles(bottleX, bottleY, '#4a9eff', 8);
             screenShake = 2;
+            audio.playWaterSquirt();
         }
 
         // Update shot pucks
@@ -586,6 +598,11 @@
             goalie.update(player.x);
         }
 
+        // Update boss goalie
+        if (level.bossGoalie && level.bossGoalie.alive) {
+            level.bossGoalie.update(player.x);
+        }
+
         // Update pucks
         for (const puck of level.pucks) {
             puck.update(time);
@@ -608,6 +625,27 @@
             }
         }
 
+        // Update moving platforms
+        if (level.movingPlatforms) {
+            for (const mp of level.movingPlatforms) {
+                mp.update(time);
+            }
+        }
+
+        // Update crumbling platforms
+        if (level.crumblePlatforms) {
+            for (const cp of level.crumblePlatforms) {
+                cp.update();
+            }
+        }
+
+        // Update checkpoints
+        if (level.checkpoints) {
+            for (const cp of level.checkpoints) {
+                cp.update(time);
+            }
+        }
+
         // Update flash messages
         ui.updateFlash();
 
@@ -620,9 +658,11 @@
                 ui.pucksCollected++;
                 spawnParticles(puck.x + 10, puck.y + 6, '#333', 8);
                 spawnParticles(puck.x + 10, puck.y + 6, '#ffd700', 4);
+                audio.playPuckCollect();
 
                 if (player.pucksCollected % 5 === 0) {
                     ui.showFlash('🏒 NEW SHOT READY!', 90, '#ff8800', '#ff6600');
+                    audio.playNewShot();
                 }
             }
         }
@@ -637,6 +677,7 @@
                 spawnParticles(cup.x + 14, cup.y + 20, '#fff', 15);
                 screenShake = 12;
                 ui.showFlash('🏆 YOU GOT THE STANLEY CUP! 🏆', 180, '#ffd700', '#ffd700');
+                audio.playPowerUp();
             }
         }
 
@@ -650,6 +691,7 @@
                 spawnParticles(ht.x + 16, ht.y + 18, '#88ccff', 15);
                 screenShake = 12;
                 ui.showFlash('🎩 HAT TRICK! FREEZE THEM! 🎩', 180, '#4a9eff', '#4a9eff');
+                audio.playPowerUp();
             }
         }
 
@@ -665,6 +707,7 @@
                     spawnParticles(ba.x + 17, ba.y + 19, '#ffd700', 10);
                     screenShake = 15;
                     ui.showFlash('🏃 BREAKAWAY! INVINCIBLE! 🏃', 180, '#44ff88', '#44ff88');
+                    audio.playPowerUp();
                 }
             }
         }
@@ -674,12 +717,123 @@
             spawnParticles(player.x + player.width / 2, player.y + player.height, '#44ff88', 2);
         }
 
+        // Collision: Player vs Checkpoints
+        if (level.checkpoints) {
+            for (const cp of level.checkpoints) {
+                if (!cp.activated && rectsOverlap(playerBounds, cp.getBounds())) {
+                    cp.activated = true;
+                    player.setCheckpoint(cp.x, cp.y - 10);
+                    spawnParticles(cp.x + 10, cp.y + 10, '#44ff88', 15);
+                    spawnParticles(cp.x + 10, cp.y + 10, '#ffd700', 8);
+                    screenShake = 4;
+                    ui.showFlash('✓ CHECKPOINT!', 60, '#44ff88', '#22cc55');
+                    audio.playCheckpoint();
+                }
+            }
+        }
+
+        // Collision: Player vs Moving Platforms (handled in player.update via platforms array)
+        // We need to add moving/crumble platforms to the collision check
+        if (level.movingPlatforms) {
+            for (const mp of level.movingPlatforms) {
+                const platX = mp.currentX;
+                const platY = mp.currentY;
+                if (player.velY >= 0 &&
+                    player.x + player.width > platX &&
+                    player.x < platX + mp.width &&
+                    player.y + player.height >= platY &&
+                    player.y + player.height <= platY + mp.height + player.velY + 2) {
+                    player.y = platY - player.height;
+                    player.velY = 0;
+                    player.grounded = true;
+                    player.hasDoubleJumped = false;
+                    if (mp.velX) player.x += mp.velX;
+                }
+            }
+        }
+
+        // Collision: Player vs Crumbling Platforms
+        if (level.crumblePlatforms) {
+            for (const cp of level.crumblePlatforms) {
+                if (cp.fallen) continue;
+                const platX = cp.currentX || cp.x;
+                const platY = cp.currentY || cp.y;
+                if (player.velY >= 0 &&
+                    player.x + player.width > platX &&
+                    player.x < platX + cp.width &&
+                    player.y + player.height >= platY &&
+                    player.y + player.height <= platY + cp.height + player.velY + 2) {
+                    player.y = platY - player.height;
+                    player.velY = 0;
+                    player.grounded = true;
+                    player.hasDoubleJumped = false;
+                    if (!cp.crumbling) {
+                        cp.crumbling = true;
+                        cp.crumbleTimer = cp.crumbleDuration;
+                    }
+                }
+            }
+        }
+
+        // Collision: Player vs Boss Goalie
+        if (level.bossGoalie && level.bossGoalie.alive && !level.bossGoalie.dying) {
+            if (rectsOverlap(playerBounds, level.bossGoalie.getBounds())) {
+                player.loseLife();
+                spawnParticles(player.x + 18, player.y + 26, '#c8102e', 15);
+                screenShake = 12;
+                audio.playHurt();
+            }
+            // Boss shockwave collision
+            const shockBounds = level.bossGoalie.getShockwaveBounds();
+            if (shockBounds && rectsOverlap(playerBounds, shockBounds)) {
+                player.loseLife();
+                spawnParticles(player.x + 18, player.y + 26, '#ff4444', 12);
+                screenShake = 10;
+                audio.playHurt();
+                ui.showFlash('💥 SHOCKWAVE!', 45, '#ff4444', '#ff0000');
+            }
+        }
+
         // Collision: Player vs Goalies
         for (const goalie of level.goalies) {
             if (goalie.alive && !goalie.dying && !goalie.frozen && rectsOverlap(playerBounds, goalie.getBounds())) {
                 player.loseLife();
                 spawnParticles(player.x + 18, player.y + 26, '#c8102e', 12);
                 screenShake = 8;
+                audio.playHurt();
+            }
+        }
+
+        // Collision: Shot Pucks vs Boss Goalie
+        if (level.bossGoalie && level.bossGoalie.alive && !level.bossGoalie.dying) {
+            for (const shot of shotPucks) {
+                if (!shot.alive) continue;
+                if (rectsOverlap(shot.getBounds(), level.bossGoalie.getBounds())) {
+                    const didHit = level.bossGoalie.hit();
+                    shot.alive = false;
+                    if (didHit) {
+                        player.score += 50;
+                        screenShake = 8;
+                        spawnParticles(level.bossGoalie.x + 40, level.bossGoalie.y + 50, '#ff4444', 15);
+                        spawnParticles(level.bossGoalie.x + 40, level.bossGoalie.y + 50, '#ffd700', 10);
+                        ui.showFlash('💥 BOSS HIT! HP: ' + level.bossGoalie.hp + '/' + level.bossGoalie.maxHp, 60, '#ff4444', '#ff2200');
+                        audio.playBossHit();
+                        if (level.bossGoalie.hp <= 0) {
+                            player.score += 500;
+                            screenShake = 20;
+                            spawnParticles(level.bossGoalie.x + 40, level.bossGoalie.y + 50, '#ffd700', 40);
+                            spawnParticles(level.bossGoalie.x + 40, level.bossGoalie.y + 50, '#44ff88', 30);
+                            ui.showFlash('🏆 BOSS DEFEATED! 🏆', 180, '#ffd700', '#ffd700');
+                            audio.playBossDefeat();
+                        }
+                    } else {
+                        screenShake = 4;
+                        spawnParticles(level.bossGoalie.x + 40, level.bossGoalie.y + 30, '#ffdd44', 10);
+                        ui.showFlash('🧤 BOSS BLOCKED!', 45, '#ffdd44', '#ffaa00');
+                        audio.playGoalieBlock();
+                    }
+                    break;
+                }
             }
         }
 
@@ -694,6 +848,7 @@
                         spawnParticles(goalie.x + goalie.width / 2, goalie.y + 20, '#ffdd44', 8);
                         screenShake = 3;
                         ui.showFlash('🧤 BLOCKED!', 45, '#ffdd44', '#ffaa00');
+                        audio.playGoalieBlock();
                     } else {
                         goalie.kill();
                         shot.alive = false;
@@ -703,6 +858,7 @@
                         spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#ff4444', 10);
                         spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#ffd700', 8);
                         ui.showFlash('💥 GOALIE DOWN!', 60, '#ff4444', '#ff2200');
+                        audio.playGoalieHit();
                     }
                     break;
                 }
@@ -721,6 +877,7 @@
                     spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#4a9eff', 20);
                     spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#88ccff', 12);
                     ui.showFlash('❄ GOALIE FROZEN! ❄', 60, '#4a9eff', '#4a9eff');
+                    audio.playGoalieFreeze();
                     break;
                 }
             }
@@ -729,6 +886,8 @@
         // Check game over
         if (player.lives <= 0) {
             gameState = STATE.GAMEOVER;
+            audio.fadeOutMusic(1);
+            audio.playGameOver();
         }
 
         // Check level completion
@@ -757,6 +916,7 @@
 
                 transitionTargetLevel = 2;
                 gameState = STATE.LEVEL_TRANSITION;
+                audio.playLevelComplete();
             } else if (currentLevel === 2) {
                 // Calculate Level 2 time and multiplier
                 level2EndTime = gameTimer;
@@ -781,6 +941,7 @@
 
                 transitionTargetLevel = 3;
                 gameState = STATE.LEVEL_TRANSITION;
+                audio.playLevelComplete();
             } else {
                 // Calculate Level 3 time and multiplier
                 level3EndTime = gameTimer;
@@ -804,6 +965,8 @@
                 ui.level3MultipliedBonus = multipliedBonus;
 
                 gameState = STATE.WIN;
+                audio.fadeOutMusic(1);
+                audio.playWin();
             }
         }
 
@@ -856,10 +1019,36 @@
             }
         }
 
+        // Draw moving platforms
+        if (level.movingPlatforms) {
+            for (const mp of level.movingPlatforms) {
+                mp.draw(ctx, cameraX);
+            }
+        }
+
+        // Draw crumbling platforms
+        if (level.crumblePlatforms) {
+            for (const cp of level.crumblePlatforms) {
+                cp.draw(ctx, cameraX);
+            }
+        }
+
+        // Draw checkpoints
+        if (level.checkpoints) {
+            for (const cp of level.checkpoints) {
+                cp.draw(ctx, cameraX, time);
+            }
+        }
+
         for (const goalie of level.goalies) {
             if ((goalie.alive || goalie.dying) && goalie.x + goalie.width > cameraX - 50 && goalie.x < cameraX + canvas.width + 50) {
                 goalie.draw(ctx, cameraX);
             }
+        }
+
+        // Draw boss goalie
+        if (level.bossGoalie && (level.bossGoalie.alive || level.bossGoalie.dying)) {
+            level.bossGoalie.draw(ctx, cameraX);
         }
 
         for (const shot of shotPucks) {
