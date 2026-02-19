@@ -649,13 +649,118 @@
         // Update flash messages
         ui.updateFlash();
 
-        // Collision: Player vs Pucks
+        // === BOUNCE PAD COLLISION ===
+        for (const plat of level.platforms) {
+            if (plat.type === 'bounce') {
+                if (player.velY >= 0 &&
+                    player.x + player.width > plat.x &&
+                    player.x < plat.x + plat.width &&
+                    player.y + player.height >= plat.y &&
+                    player.y + player.height <= plat.y + plat.height + player.velY + 4) {
+                    player.velY = -20; // Super bounce!
+                    player.grounded = false;
+                    spawnParticles(player.x + player.width / 2, plat.y, '#ff6644', 12);
+                    spawnParticles(player.x + player.width / 2, plat.y, '#ffaa44', 8);
+                    screenShake = 5;
+                    audio.playJump();
+                }
+            }
+        }
+
+        // === SPEED ZONE COLLISION ===
+        for (const plat of level.platforms) {
+            if (plat.type === 'speed') {
+                if (player.x + player.width > plat.x &&
+                    player.x < plat.x + plat.width &&
+                    player.y + player.height >= plat.y &&
+                    player.y + player.height <= plat.y + plat.height + 10) {
+                    if (!player.speedBoosted) {
+                        player.speedBoosted = true;
+                        player.speedBoostTimer = 120; // 2 seconds
+                        player.speed = player.baseSpeed * 1.8;
+                        spawnParticles(player.x + player.width / 2, player.y + player.height, '#00ffcc', 8);
+                    }
+                }
+            }
+        }
+
+        // Speed boost timer
+        if (player.speedBoosted) {
+            player.speedBoostTimer--;
+            if (player.speedBoostTimer <= 0) {
+                player.speedBoosted = false;
+                player.speed = player.baseSpeed;
+            }
+        }
+
+        // === PUCK MAGNET EFFECT ===
+        if (player.puckMagnetActive) {
+            player.puckMagnetTimer--;
+            if (player.puckMagnetTimer <= 0) {
+                player.puckMagnetActive = false;
+            }
+            // Attract nearby pucks
+            for (const puck of level.pucks) {
+                if (!puck.collected) {
+                    const dx = player.x + player.width / 2 - puck.x;
+                    const dy = player.y + player.height / 2 - puck.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 150) {
+                        puck.x += dx * 0.08;
+                        puck.y += dy * 0.08;
+                    }
+                }
+            }
+        }
+
+        // === SLAPSHOT CHARGE ===
+        if (player.slapshotChargeCount >= player.slapshotChargeMax && !player.slapshotReady) {
+            player.slapshotReady = true;
+            ui.showFlash('💥 SLAPSHOT READY! Press [C]!', 120, '#ff4444', '#ff0000');
+        }
+
+        // SLAPSHOT ACTIVATION
+        if ((keysJustPressed['c'] || keysJustPressed['C']) && player.slapshotReady) {
+            player.slapshotReady = false;
+            player.slapshotChargeCount = 0;
+            screenShake = 20;
+            // Kill all visible goalies
+            let killCount = 0;
+            for (const goalie of level.goalies) {
+                if (goalie.alive && !goalie.dying) {
+                    const gx = goalie.x - cameraX;
+                    if (gx > -50 && gx < canvas.width + 50) {
+                        goalie.kill();
+                        killCount++;
+                        spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#ff4444', 20);
+                        spawnParticles(goalie.x + goalie.width / 2, goalie.y + goalie.height / 2, '#ffd700', 15);
+                    }
+                }
+            }
+            player.score += killCount * 50;
+            // Screen flash
+            ui.showFlash('💥 SLAPSHOT! ' + killCount + ' GOALIES DOWN! 💥', 120, '#ff4444', '#ff0000');
+            audio.playBossHit();
+        }
+
+        // Collision: Player vs Pucks (with combo system)
         const playerBounds = player.getBounds();
         for (const puck of level.pucks) {
             if (!puck.collected && rectsOverlap(playerBounds, puck.getBounds())) {
                 puck.collected = true;
                 player.collectPuck();
                 ui.pucksCollected++;
+
+                // Combo system for rapid puck collection
+                const combo = player.addCombo(5); // bonus points via combo
+                if (combo.count >= 3) {
+                    ui.showFlash('🔥 COMBO x' + combo.multiplier + '!', 45, '#ff8800', '#ff6600');
+                    audio.playCombo(combo.count);
+                }
+
+                // Slapshot charge
+                player.slapshotChargeCount++;
+
                 spawnParticles(puck.x + 10, puck.y + 6, '#333', 8);
                 spawnParticles(puck.x + 10, puck.y + 6, '#ffd700', 4);
                 audio.playPuckCollect();
@@ -663,6 +768,13 @@
                 if (player.pucksCollected % 5 === 0) {
                     ui.showFlash('🏒 NEW SHOT READY!', 90, '#ff8800', '#ff6600');
                     audio.playNewShot();
+                }
+
+                // Every 10 pucks activates puck magnet briefly
+                if (player.pucksCollected % 10 === 0) {
+                    player.puckMagnetActive = true;
+                    player.puckMagnetTimer = player.puckMagnetDuration;
+                    ui.showFlash('🧲 PUCK MAGNET!', 60, '#ffd700', '#ffaa00');
                 }
             }
         }
@@ -989,7 +1101,7 @@
 
         for (const plat of level.platforms) {
             if (plat.x + plat.width > cameraX - 50 && plat.x < cameraX + canvas.width + 50) {
-                plat.draw(ctx, cameraX);
+                plat.draw(ctx, cameraX, time);
             }
         }
 

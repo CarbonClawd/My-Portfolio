@@ -18,29 +18,59 @@ class Puck {
 
         const drawX = this.x - cameraX;
         const drawY = this.y + (this.bobY || 0);
+        const t = time || 0;
 
         ctx.save();
 
-        // Shadow
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        // Golden glow ring
+        const glowAlpha = Math.sin(t * 0.08 + this.bobOffset) * 0.2 + 0.3;
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 8 + Math.sin(t * 0.1 + this.bobOffset) * 4;
+
+        // Shadow on ground
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.beginPath();
-        ctx.ellipse(drawX + 10, drawY + 14, 10, 4, 0, 0, Math.PI * 2);
+        ctx.ellipse(drawX + 10, drawY + 16, 10, 3, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Puck side (3D effect)
-        ctx.fillStyle = '#111';
+        // Glow ring
+        ctx.strokeStyle = 'rgba(255, 215, 0, ' + glowAlpha + ')';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(drawX + 10, drawY + 4, 13, 7, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Puck side (3D effect) with gradient
+        const sideGrad = ctx.createLinearGradient(drawX, drawY + 2, drawX, drawY + 10);
+        sideGrad.addColorStop(0, '#222');
+        sideGrad.addColorStop(0.5, '#111');
+        sideGrad.addColorStop(1, '#050505');
+        ctx.fillStyle = sideGrad;
         ctx.fillRect(drawX, drawY + 2, 20, 8);
 
-        // Puck top
-        ctx.fillStyle = '#1a1a1a';
+        // Puck top with gradient
+        const topGrad = ctx.createRadialGradient(drawX + 8, drawY, 2, drawX + 10, drawY + 2, 10);
+        topGrad.addColorStop(0, '#333');
+        topGrad.addColorStop(0.5, '#1a1a1a');
+        topGrad.addColorStop(1, '#0a0a0a');
+        ctx.fillStyle = topGrad;
         ctx.beginPath();
         ctx.ellipse(drawX + 10, drawY + 2, 10, 5, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Shine
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        // Rotating shine highlight
+        const shineAngle = t * 0.05 + this.bobOffset;
+        const shineX = drawX + 10 + Math.cos(shineAngle) * 4;
+        const shineY = drawY + 1 + Math.sin(shineAngle) * 2;
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
         ctx.beginPath();
-        ctx.ellipse(drawX + 8, drawY, 4, 2, -0.3, 0, Math.PI * 2);
+        ctx.ellipse(shineX, shineY, 3, 1.5, shineAngle * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Edge highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.beginPath();
+        ctx.ellipse(drawX + 10, drawY + 2, 10, 5, 0, Math.PI + 0.3, Math.PI * 2 - 0.3);
         ctx.fill();
 
         ctx.restore();
@@ -508,72 +538,220 @@ class Platform {
         this.y = y;
         this.width = width;
         this.height = height || 20;
-        this.type = type || 'ice'; // 'ice', 'boards', 'ground'
+        this.type = type || 'ice'; // 'ice', 'boards', 'ground', 'bounce', 'speed'
     }
 
-    draw(ctx, cameraX) {
+    draw(ctx, cameraX, time) {
         const drawX = this.x - cameraX;
         const drawY = this.y;
+        const t = time || 0;
 
         ctx.save();
 
         if (this.type === 'ground') {
-            // Ice surface ground
-            ctx.fillStyle = '#e8f0ff';
+            // Ice surface ground with gradient
+            const grad = ctx.createLinearGradient(drawX, drawY, drawX, drawY + this.height);
+            grad.addColorStop(0, '#dce8ff');
+            grad.addColorStop(0.15, '#e8f0ff');
+            grad.addColorStop(0.5, '#f0f6ff');
+            grad.addColorStop(1, '#c8d8f0');
+            ctx.fillStyle = grad;
             ctx.fillRect(drawX, drawY, this.width, this.height);
 
-            // Ice lines
-            ctx.strokeStyle = 'rgba(180, 210, 255, 0.5)';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < this.width; i += 30) {
+            // Ice scratch lines (subtle)
+            ctx.strokeStyle = 'rgba(180, 210, 255, 0.35)';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < this.width; i += 18) {
                 ctx.beginPath();
-                ctx.moveTo(drawX + i, drawY);
-                ctx.lineTo(drawX + i + 15, drawY + this.height);
+                ctx.moveTo(drawX + i, drawY + 4);
+                ctx.lineTo(drawX + i + 10, drawY + this.height);
                 ctx.stroke();
             }
 
-            // Top edge - boards
-            ctx.fillStyle = '#c8102e';
-            ctx.fillRect(drawX, drawY, this.width, 4);
+            // Shimmer effect
+            for (let i = 0; i < this.width; i += 40) {
+                const shimmer = Math.sin(t * 0.04 + i * 0.1) * 0.15 + 0.15;
+                ctx.fillStyle = 'rgba(255, 255, 255, ' + shimmer + ')';
+                ctx.fillRect(drawX + i, drawY + 5, 20, 2);
+            }
+
+            // Top edge - boards with gradient
+            const boardGrad = ctx.createLinearGradient(drawX, drawY, drawX, drawY + 5);
+            boardGrad.addColorStop(0, '#e02040');
+            boardGrad.addColorStop(1, '#a01030');
+            ctx.fillStyle = boardGrad;
+            ctx.fillRect(drawX, drawY, this.width, 5);
+
+            // Board highlight
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fillRect(drawX, drawY, this.width, 1);
 
         } else if (this.type === 'boards') {
-            // Rink boards platform
-            ctx.fillStyle = '#f0f0f0';
-            ctx.fillRect(drawX, drawY, this.width, this.height);
+            // Rink boards platform with 3D depth
+            const grad = ctx.createLinearGradient(drawX, drawY, drawX, drawY + this.height);
+            grad.addColorStop(0, '#ffffff');
+            grad.addColorStop(0.2, '#f0f0f0');
+            grad.addColorStop(0.8, '#e0e0e0');
+            grad.addColorStop(1, '#cccccc');
+            ctx.fillStyle = grad;
+            this._roundRect(ctx, drawX, drawY, this.width, this.height, 3);
+            ctx.fill();
 
-            // Board texture
-            ctx.fillStyle = '#ddd';
-            ctx.fillRect(drawX, drawY, this.width, 3);
+            // Wood grain texture
+            ctx.strokeStyle = 'rgba(180, 170, 160, 0.2)';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < this.width; i += 12) {
+                const wobble = Math.sin(i * 0.3) * 2;
+                ctx.beginPath();
+                ctx.moveTo(drawX + i, drawY + 2);
+                ctx.quadraticCurveTo(drawX + i + 6, drawY + this.height / 2 + wobble, drawX + i, drawY + this.height - 2);
+                ctx.stroke();
+            }
+
+            // Top highlight
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fillRect(drawX + 2, drawY, this.width - 4, 2);
 
             // Red line on boards
-            ctx.fillStyle = '#c8102e';
+            const redGrad = ctx.createLinearGradient(drawX, drawY + this.height - 4, drawX, drawY + this.height);
+            redGrad.addColorStop(0, '#e02040');
+            redGrad.addColorStop(1, '#901020');
+            ctx.fillStyle = redGrad;
             ctx.fillRect(drawX, drawY + this.height - 3, this.width, 3);
 
-            // Dasher boards pattern
-            ctx.strokeStyle = '#bbb';
+            // Dasher boards pattern with depth
+            ctx.strokeStyle = 'rgba(200, 200, 200, 0.4)';
             ctx.lineWidth = 1;
             for (let i = 0; i < this.width; i += 20) {
                 ctx.beginPath();
-                ctx.moveTo(drawX + i, drawY);
-                ctx.lineTo(drawX + i, drawY + this.height);
+                ctx.moveTo(drawX + i, drawY + 3);
+                ctx.lineTo(drawX + i, drawY + this.height - 3);
                 ctx.stroke();
             }
 
-        } else {
-            // Ice platform
-            ctx.fillStyle = 'rgba(200, 225, 255, 0.9)';
+            // Bottom shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            ctx.fillRect(drawX + 2, drawY + this.height, this.width - 4, 3);
+
+        } else if (this.type === 'bounce') {
+            // Bounce pad - spring platform
+            const bouncePhase = Math.sin(t * 0.08) * 2;
+            const grad = ctx.createLinearGradient(drawX, drawY, drawX, drawY + this.height);
+            grad.addColorStop(0, '#ff6644');
+            grad.addColorStop(0.5, '#ff4422');
+            grad.addColorStop(1, '#cc2200');
+            ctx.fillStyle = grad;
+            this._roundRect(ctx, drawX, drawY + bouncePhase, this.width, this.height, 4);
+            ctx.fill();
+
+            // Spring coils
+            ctx.strokeStyle = '#ffaa44';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < this.width - 8; i += 8) {
+                ctx.beginPath();
+                ctx.moveTo(drawX + 4 + i, drawY + 3 + bouncePhase);
+                ctx.lineTo(drawX + 8 + i, drawY + this.height - 3 + bouncePhase);
+                ctx.stroke();
+            }
+
+            // Glow
+            ctx.shadowColor = '#ff6644';
+            ctx.shadowBlur = 8 + Math.sin(t * 0.1) * 4;
+            ctx.strokeStyle = 'rgba(255, 100, 68, 0.6)';
+            ctx.lineWidth = 1.5;
+            this._roundRect(ctx, drawX, drawY + bouncePhase, this.width, this.height, 4);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Arrow indicator
+            ctx.fillStyle = '#ffdd44';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('▲', drawX + this.width / 2, drawY - 4 + bouncePhase);
+
+        } else if (this.type === 'speed') {
+            // Speed boost zone
+            const grad = ctx.createLinearGradient(drawX, drawY, drawX + this.width, drawY);
+            grad.addColorStop(0, 'rgba(0, 200, 255, 0.6)');
+            grad.addColorStop(0.5, 'rgba(0, 255, 200, 0.8)');
+            grad.addColorStop(1, 'rgba(0, 200, 255, 0.6)');
+            ctx.fillStyle = grad;
             ctx.fillRect(drawX, drawY, this.width, this.height);
 
-            // Shine on top
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-            ctx.fillRect(drawX, drawY, this.width, 3);
+            // Animated chevrons
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            const chevronOffset = (t * 3) % 30;
+            for (let i = -30; i < this.width + 30; i += 30) {
+                const cx = drawX + i + chevronOffset;
+                if (cx > drawX - 5 && cx < drawX + this.width + 5) {
+                    ctx.beginPath();
+                    ctx.moveTo(cx, drawY + 2);
+                    ctx.lineTo(cx + 8, drawY + this.height / 2);
+                    ctx.lineTo(cx, drawY + this.height - 2);
+                    ctx.fill();
+                }
+            }
 
-            // Blue line accent
-            ctx.fillStyle = '#0033a0';
+            // Glow
+            ctx.shadowColor = '#00ffcc';
+            ctx.shadowBlur = 10;
+            ctx.strokeStyle = 'rgba(0, 255, 200, 0.6)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(drawX, drawY, this.width, this.height);
+            ctx.shadowBlur = 0;
+
+            // Speed label
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.font = 'bold 9px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('⚡SPEED⚡', drawX + this.width / 2, drawY + this.height / 2 + 3);
+
+        } else {
+            // Ice platform with gradient and shimmer
+            const grad = ctx.createLinearGradient(drawX, drawY, drawX, drawY + this.height);
+            grad.addColorStop(0, 'rgba(220, 240, 255, 0.95)');
+            grad.addColorStop(0.3, 'rgba(200, 225, 255, 0.9)');
+            grad.addColorStop(1, 'rgba(170, 200, 240, 0.85)');
+            ctx.fillStyle = grad;
+            this._roundRect(ctx, drawX, drawY, this.width, this.height, 3);
+            ctx.fill();
+
+            // Shimmer on top
+            const shimmerPos = (t * 2) % (this.width + 40) - 20;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fillRect(drawX, drawY, this.width, 2);
+            // Moving shimmer highlight
+            const shimmerAlpha = 0.4;
+            ctx.fillStyle = 'rgba(255, 255, 255, ' + shimmerAlpha + ')';
+            ctx.fillRect(drawX + shimmerPos, drawY, 20, 3);
+
+            // Blue line accent with gradient
+            const blueGrad = ctx.createLinearGradient(drawX, drawY + this.height - 3, drawX, drawY + this.height);
+            blueGrad.addColorStop(0, '#0044cc');
+            blueGrad.addColorStop(1, '#002288');
+            ctx.fillStyle = blueGrad;
             ctx.fillRect(drawX, drawY + this.height - 2, this.width, 2);
+
+            // Bottom shadow
+            ctx.fillStyle = 'rgba(0, 0, 50, 0.1)';
+            ctx.fillRect(drawX + 2, drawY + this.height, this.width - 4, 2);
         }
 
         ctx.restore();
+    }
+
+    _roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
     }
 }
 
@@ -693,6 +871,17 @@ function createLevel1() {
     const crumblePlatforms = [];
     crumblePlatforms.push(new CrumblePlatform(1750, 420, 80, 18));
     crumblePlatforms.push(new CrumblePlatform(3200, 360, 80, 18));
+
+    // Bounce pads
+    platforms.push(new Platform(820, 500, 60, 16, 'bounce'));
+    platforms.push(new Platform(2100, 500, 60, 16, 'bounce'));
+    platforms.push(new Platform(3750, 500, 60, 16, 'bounce'));
+
+    // Speed zones
+    platforms.push(new Platform(300, 516, 120, 6, 'speed'));
+    platforms.push(new Platform(1700, 516, 120, 6, 'speed'));
+    platforms.push(new Platform(3200, 516, 120, 6, 'speed'));
+    platforms.push(new Platform(4100, 516, 120, 6, 'speed'));
 
     // Checkpoints
     const checkpoints = [];
@@ -836,6 +1025,19 @@ function createLevel2() {
     crumblePlatforms.push(new CrumblePlatform(1180, 420, 75, 18));
     crumblePlatforms.push(new CrumblePlatform(2280, 380, 75, 18));
     crumblePlatforms.push(new CrumblePlatform(3600, 400, 70, 18));
+
+    // Bounce pads
+    platforms.push(new Platform(700, 500, 55, 16, 'bounce'));
+    platforms.push(new Platform(1900, 500, 55, 16, 'bounce'));
+    platforms.push(new Platform(3400, 500, 55, 16, 'bounce'));
+    platforms.push(new Platform(4500, 500, 55, 16, 'bounce'));
+
+    // Speed zones
+    platforms.push(new Platform(200, 516, 100, 6, 'speed'));
+    platforms.push(new Platform(1500, 516, 100, 6, 'speed'));
+    platforms.push(new Platform(2900, 516, 100, 6, 'speed'));
+    platforms.push(new Platform(3800, 516, 100, 6, 'speed'));
+    platforms.push(new Platform(4400, 516, 100, 6, 'speed'));
 
     // Checkpoints
     const checkpoints = [];
@@ -1155,6 +1357,26 @@ function createLevel3() {
     crumblePlatforms.push(new CrumblePlatform(3270, 360, 60, 18));
     crumblePlatforms.push(new CrumblePlatform(3930, 370, 65, 18));
     crumblePlatforms.push(new CrumblePlatform(4580, 390, 60, 18));
+
+    // Bounce pads - more in Level 3
+    platforms.push(new Platform(600, 500, 50, 16, 'bounce'));
+    platforms.push(new Platform(1150, 500, 50, 16, 'bounce'));
+    platforms.push(new Platform(1650, 500, 50, 16, 'bounce'));
+    platforms.push(new Platform(2300, 500, 50, 16, 'bounce'));
+    platforms.push(new Platform(2850, 500, 50, 16, 'bounce'));
+    platforms.push(new Platform(3350, 500, 50, 16, 'bounce'));
+    platforms.push(new Platform(4000, 500, 50, 16, 'bounce'));
+    platforms.push(new Platform(4550, 500, 50, 16, 'bounce'));
+
+    // Speed zones
+    platforms.push(new Platform(100, 516, 90, 6, 'speed'));
+    platforms.push(new Platform(1250, 516, 90, 6, 'speed'));
+    platforms.push(new Platform(1800, 516, 90, 6, 'speed'));
+    platforms.push(new Platform(2450, 516, 90, 6, 'speed'));
+    platforms.push(new Platform(3000, 516, 90, 6, 'speed'));
+    platforms.push(new Platform(3500, 516, 90, 6, 'speed'));
+    platforms.push(new Platform(4100, 516, 90, 6, 'speed'));
+    platforms.push(new Platform(4650, 516, 90, 6, 'speed'));
 
     // Checkpoints
     const checkpoints = [];

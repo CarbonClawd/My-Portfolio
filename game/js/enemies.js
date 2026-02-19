@@ -6,8 +6,8 @@ class BossGoalie {
         this.width = 80;
         this.height = 100;
         this.alive = true;
-        this.hp = 10;
-        this.maxHp = 10;
+        this.hp = 5;
+        this.maxHp = 5;
         this.phase = 1; // 1, 2, 3 as HP drops
         this.direction = 1;
         this.speed = 1.5;
@@ -24,7 +24,7 @@ class BossGoalie {
         this.shockwaveX = 0;
         this.shockwaveActive = false;
         this.shockwaveTimer = 0;
-        this.blockChance = 0.3;
+        this.blockChance = 0.2;
     }
 
     update(playerX) {
@@ -36,8 +36,8 @@ class BossGoalie {
         }
 
         // Phase transitions
-        if (this.hp <= 3) { this.phase = 3; this.speed = 3; this.blockChance = 0.5; }
-        else if (this.hp <= 6) { this.phase = 2; this.speed = 2.2; this.blockChance = 0.4; }
+        if (this.hp <= 1) { this.phase = 3; this.speed = 3; this.blockChance = 0.4; }
+        else if (this.hp <= 3) { this.phase = 2; this.speed = 2.2; this.blockChance = 0.3; }
 
         // Hit flash
         if (this.hitFlash > 0) this.hitFlash--;

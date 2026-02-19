@@ -60,6 +60,21 @@ class Player {
         this.shots = 0; // each shot costs 5 pucks
         this.shootCooldown = 0;
 
+        // Puck magnet
+        this.puckMagnetActive = false;
+        this.puckMagnetTimer = 0;
+        this.puckMagnetDuration = 300; // 5 seconds
+
+        // Slapshot (screen clear)
+        this.slapshotReady = false;
+        this.slapshotChargeCount = 0;
+        this.slapshotChargeMax = 25; // collect 25 pucks to charge
+
+        // Speed boost
+        this.speedBoosted = false;
+        this.speedBoostTimer = 0;
+        this.baseSpeed = 5;
+
         // Skin
         this.skinIndex = 0;
 
@@ -68,6 +83,12 @@ class Player {
         this.animTimer = 0;
         this.skating = false;
         this.armSwing = 0;
+
+        // Ice spray particles
+        this.iceSpray = [];
+
+        // Dash afterimages
+        this.afterimages = [];
     }
 
     collectPuck() {
@@ -323,6 +344,67 @@ class Player {
     }
 
     draw(ctx, cameraX) {
+        // Draw afterimages first (behind player)
+        for (let i = this.afterimages.length - 1; i >= 0; i--) {
+            const ai = this.afterimages[i];
+            ai.life--;
+            if (ai.life <= 0) {
+                this.afterimages.splice(i, 1);
+                continue;
+            }
+            const alpha = ai.life / ai.maxLife * 0.4;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = this.breakawayActive ? '#44ff88' : (this.superJump ? '#ffd700' : '#c8102e');
+            ctx.fillRect(ai.x - cameraX + 4, ai.y + 16, this.width - 8, 22);
+            ctx.beginPath();
+            ctx.ellipse(ai.x - cameraX + this.width / 2, ai.y + 10, 14, 12, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Draw ice spray particles
+        for (let i = this.iceSpray.length - 1; i >= 0; i--) {
+            const p = this.iceSpray[i];
+            p.x += p.velX;
+            p.y += p.velY;
+            p.life--;
+            if (p.life <= 0) {
+                this.iceSpray.splice(i, 1);
+                continue;
+            }
+            const alpha = p.life / p.maxLife * 0.6;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x - cameraX, p.y, p.size, p.size);
+            ctx.restore();
+        }
+
+        // Spawn ice spray when skating on ground
+        if (this.skating && this.grounded && Math.abs(this.velX) > 2) {
+            for (let i = 0; i < 2; i++) {
+                this.iceSpray.push({
+                    x: this.x + this.width / 2 - this.facing * 10 + Math.random() * 10,
+                    y: this.y + this.height - 4 + Math.random() * 4,
+                    velX: -this.facing * (1 + Math.random() * 2),
+                    velY: -(0.5 + Math.random() * 1.5),
+                    life: 10 + Math.random() * 10,
+                    maxLife: 20,
+                    size: 1 + Math.random() * 2,
+                    color: Math.random() > 0.5 ? '#c8e8ff' : '#ffffff'
+                });
+            }
+        }
+
+        // Spawn afterimages when dashing
+        if (this.dashing && this.dashTimer % 3 === 0) {
+            this.afterimages.push({
+                x: this.x, y: this.y,
+                life: 12, maxLife: 12
+            });
+        }
+
         // Blink when invincible
         if (this.invincible && Math.floor(this.blinkTimer / 4) % 2 === 0) return;
 
@@ -331,6 +413,42 @@ class Player {
         const cx = drawX + this.width / 2; // center x
 
         ctx.save();
+
+        // Player shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        const shadowScale = Math.min(1, (520 - this.y) / 200);
+        if (shadowScale > 0) {
+            ctx.beginPath();
+            ctx.ellipse(drawX + this.width / 2, 518, 16 * shadowScale, 4 * shadowScale, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Speed boost visual
+        if (this.speedBoosted) {
+            ctx.strokeStyle = 'rgba(0, 255, 200, 0.4)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 3; i++) {
+                const lineX = drawX - this.facing * (8 + i * 6);
+                ctx.beginPath();
+                ctx.moveTo(lineX, drawY + 15 + i * 12);
+                ctx.lineTo(lineX - this.facing * 12, drawY + 15 + i * 12);
+                ctx.stroke();
+            }
+        }
+
+        // Puck magnet visual
+        if (this.puckMagnetActive) {
+            const magnetPulse = Math.sin(Date.now() * 0.01) * 10;
+            ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(drawX + this.width / 2, drawY + this.height / 2, 40 + magnetPulse, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(255, 215, 0, 0.15)';
+            ctx.beginPath();
+            ctx.arc(drawX + this.width / 2, drawY + this.height / 2, 60 + magnetPulse, 0, Math.PI * 2);
+            ctx.stroke();
+        }
 
         // Glow effect when super jump is active
         if (this.superJump) {

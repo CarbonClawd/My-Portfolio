@@ -89,20 +89,56 @@ class UI {
         ctx.textAlign = 'right';
         ctx.fillText('LEVEL ' + this.currentLevel, this.canvas.width - 15, 48);
 
-        // Score
-        ctx.fillStyle = '#fff';
+        // Score with animated glow
+        const scoreGlow = Math.sin(Date.now() * 0.003) * 0.15 + 0.85;
+        ctx.fillStyle = 'rgba(255, 255, 255, ' + scoreGlow + ')';
         ctx.font = 'bold 18px Arial';
         ctx.textAlign = 'left';
         ctx.fillText('Score: ' + player.score, 15, 22);
 
-        // Lives as hearts
+        // Lives as pulsing hearts
         ctx.fillStyle = '#fff';
         ctx.font = '14px Arial';
         ctx.fillText('Lives:', 15, 44);
         for (let i = 0; i < player.lives; i++) {
+            const pulse = Math.sin(Date.now() * 0.004 + i * 0.5) * 1.5;
+            ctx.font = (16 + pulse) + 'px Arial';
             ctx.fillStyle = '#c8102e';
-            ctx.font = '16px Arial';
             ctx.fillText('❤️', 60 + i * 22, 45);
+        }
+
+        // Slapshot charge indicator
+        if (player.slapshotChargeCount > 0) {
+            const chargeX = 15;
+            const chargeY = 50;
+            const chargePct = Math.min(player.slapshotChargeCount / player.slapshotChargeMax, 1);
+            ctx.fillStyle = 'rgba(255, 50, 50, 0.2)';
+            ctx.fillRect(chargeX, chargeY, 100, 5);
+            const chargeColor = player.slapshotReady ? '#ff4444' : '#ff8844';
+            ctx.fillStyle = chargeColor;
+            ctx.fillRect(chargeX, chargeY, 100 * chargePct, 5);
+            if (player.slapshotReady) {
+                ctx.fillStyle = 'rgba(255, 68, 68, 0.9)';
+                ctx.font = 'bold 9px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText('[C] SLAPSHOT!', chargeX + 105, chargeY + 5);
+            }
+        }
+
+        // Speed boost indicator
+        if (player.speedBoosted) {
+            ctx.fillStyle = 'rgba(0, 255, 200, 0.8)';
+            ctx.font = 'bold 11px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('⚡ SPEED BOOST', 15, 66);
+        }
+
+        // Puck magnet indicator
+        if (player.puckMagnetActive) {
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.8)';
+            ctx.font = 'bold 11px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('🧲 MAGNET', player.speedBoosted ? 130 : 15, 66);
         }
 
         // Timer - color coded for urgency
@@ -263,12 +299,12 @@ class UI {
 
         ctx.fillStyle = '#888';
         ctx.font = '12px Arial';
-        ctx.fillText('Collect 5 pucks = 1 shot  •  Shoot pucks at goalies to eliminate them!', w / 2, h / 2 + 62);
+        ctx.fillText('5 pucks = 1 shot  •  Collect 25 pucks = SLAPSHOT [C]  •  Every 10 = PUCK MAGNET', w / 2, h / 2 + 62);
         ctx.fillText('L1: Stanley Cup = SUPER JUMP  •  L2: Hat Trick = FREEZE  •  L3: Breakaway = INVINCIBLE', w / 2, h / 2 + 80);
+        ctx.fillStyle = '#00ffcc';
+        ctx.fillText('⚡ Speed Zones boost you!  •  🔴 Bounce Pads launch you sky-high!', w / 2, h / 2 + 96);
         ctx.fillStyle = '#44ff88';
-        ctx.fillText('L3: Moving platforms, crumbling ice, checkpoints & a BOSS GOALIE!', w / 2, h / 2 + 96);
-        ctx.fillStyle = '#44ff44';
-        ctx.fillText('⚡ 3 Levels to conquer! Finish fast for a SPEED MULTIPLIER on your bonus score!', w / 2, h / 2 + 112);
+        ctx.fillText('L3: Moving platforms, crumbling ice, checkpoints & a BOSS GOALIE!', w / 2, h / 2 + 112);
 
         // Show top score if exists
         const entries = leaderboard ? leaderboard.getEntries() : [];
